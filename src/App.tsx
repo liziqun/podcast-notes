@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { PodcastCard } from './components/PodcastCard';
 import { NoteModal } from './components/NoteModal';
@@ -7,7 +7,6 @@ import { AuthModal } from './components/AuthModal';
 import { SyncStatus } from './components/SyncStatus';
 import type { PodcastNote } from './types';
 import type { AnalysisResult } from './services/openai';
-import { sampleNotes } from './data/sampleData';
 import {
   isSupabaseConfigured,
   onAuthStateChange,
@@ -22,6 +21,7 @@ import type { User } from '@supabase/supabase-js';
 
 function App() {
   const [notes, setNotes] = useState<PodcastNote[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,64 +35,100 @@ function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [isCloudEnabled, setIsCloudEnabled] = useState(false);
+  const [cloudError, setCloudError] = useState<string | null>(null);
 
-  // 检查 Supabase 配置和当前用户
-  useEffect(() => {
-    const configured = isSupabaseConfigured();
-    setIsCloudEnabled(configured);
-    
-    if (configured) {
-      // 获取当前用户
-      getCurrentUser().then(setUser);
-      
-      // 监听认证状态变化
-      const subscription = onAuthStateChange((newUser) => {
-        setUser(newUser);
-        if (newUser) {
-          // 用户登录后，从云端加载数据
-          loadCloudNotes();
-        }
-      });
-      
-      return () => {
-        subscription.unsubscribe();
-      };
-    }
-  }, []);
-
-  // 从 LocalStorage 加载数据（作为离线备份）
-  useEffect(() => {
+  // 从 localStorage 加载数据（未登录时的主数据源）
+  const loadFromLocalStorage = () => {
     const stored = localStorage.getItem('podcast-notes');
     if (stored) {
-      setNotes(JSON.parse(stored));
+      try {
+        setNotes(JSON.parse(stored));
+      } catch {
+        setNotes([]);
+      }
     } else {
-      setNotes(sampleNotes);
-      localStorage.setItem('podcast-notes', JSON.stringify(sampleNotes));
+      setNotes([]);
     }
-  }, []);
+  };
 
-  // 保存到 LocalStorage（离线备份）
-  useEffect(() => {
-    if (notes.length > 0) {
-      localStorage.setItem('podcast-notes', JSON.stringify(notes));
-    }
-  }, [notes]);
-
-  // 从云端加载笔记
-  const loadCloudNotes = useCallback(async () => {
-    if (!user) return;
-    
+  // 从云端加载数据
+  const loadCloudNotes = async () => {
     setIsSyncing(true);
+    setCloudError(null);
     try {
       const cloudNotes = await fetchNotes();
       setNotes(cloudNotes);
       setLastSyncTime(new Date());
     } catch (err) {
       console.error('加载云端数据失败:', err);
+      setCloudError('云端数据加载失败，请检查网络后重试');
     } finally {
       setIsSyncing(false);
     }
-  }, [user]);
+  };
+
+  // 统一的数据初始化
+  useEffect(() => {
+    const configured = isSupabaseConfigured();
+    setIsCloudEnabled(configured);
+    
+    if (configured) {
+      getCurrentUser().then((currentUser) => {
+        setUser(currentUser);
+        if (currentUser) {
+          // 已登录用户，从云端加载
+          setIsSyncing(true);
+          setCloudError(null);
+          fetchNotes()
+            .then((cloudNotes) => {
+              setNotes(cloudNotes);
+              setLastSyncTime(new Date());
+            })
+            .catch((err) => {
+              console.error('加载云端数据失败:', err);
+              setCloudError('云端数据加载失败，请检查网络后重试');
+            })
+            .finally(() => {
+              setIsSyncing(false);
+              setIsInitialized(true);
+            });
+        } else {
+          // 未登录，从 localStorage 加载，不连接云端
+          loadFromLocalStorage();
+          setIsInitialized(true);
+        }
+      });
+      
+      // 监听认证状态变化
+      const subscription = onAuthStateChange((newUser) => {
+        setUser(newUser);
+        if (newUser) {
+          loadCloudNotes();
+        } else {
+          // 用户退出登录后，恢复到登录前的本地数据
+          setCloudError(null);
+          setLastSyncTime(null);
+          loadFromLocalStorage();
+        }
+      });
+      
+      return () => {
+        subscription.unsubscribe();
+      };
+    } else {
+      // Supabase 未配置，从 localStorage 加载
+      loadFromLocalStorage();
+      setIsInitialized(true);
+    }
+  }, []);
+
+  // 保存到 LocalStorage，仅在未登录且初始化完成后写入
+  // 登录态数据由云端管理，不写入 localStorage，避免覆盖本地数据
+  useEffect(() => {
+    if (isInitialized && !user) {
+      localStorage.setItem('podcast-notes', JSON.stringify(notes));
+    }
+  }, [notes, isInitialized, user]);
 
   // 处理登录成功
   const handleAuthSuccess = () => {
@@ -110,6 +146,9 @@ function App() {
     await signOut();
     setUser(null);
     setLastSyncTime(null);
+    setCloudError(null);
+    // 恢复到登录前的本地数据
+    loadFromLocalStorage();
   };
 
   const allTags = useMemo(() => {
@@ -263,10 +302,33 @@ function App() {
             </div>
           </div>
 
-          {filteredNotes.length === 0 ? (
+          {cloudError ? (
+            <div className="text-center py-16">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-50 mb-4">
+                <span className="text-2xl text-red-400">!</span>
+              </div>
+              <p className="text-red-500 text-lg font-medium">{cloudError}</p>
+              <button
+                onClick={loadCloudNotes}
+                disabled={isSyncing}
+                className="mt-4 px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50"
+              >
+                {isSyncing ? '加载中...' : '重新加载'}
+              </button>
+            </div>
+          ) : filteredNotes.length === 0 ? (
             <div className="text-center py-20">
-              <p className="text-gray-400 text-lg">没有找到匹配的播客笔记</p>
-              <p className="text-gray-400 mt-2">点击"添加笔记"开始记录你的第一条播客笔记</p>
+              {notes.length === 0 ? (
+                <>
+                  <p className="text-gray-400 text-lg">还没有播客笔记</p>
+                  <p className="text-gray-400 mt-2">点击"智能添加"或"添加笔记"开始记录</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-400 text-lg">没有找到匹配的播客笔记</p>
+                  <p className="text-gray-400 mt-2">试试调整搜索关键词或筛选条件</p>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

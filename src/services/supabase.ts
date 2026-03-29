@@ -46,7 +46,9 @@ export function onAuthStateChange(callback: (user: User | null) => void) {
   if (!supabase) {
     return { unsubscribe: () => {} };
   }
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    // 跳过初始会话事件，初始化已由 getCurrentUser() 处理
+    if (event === 'INITIAL_SESSION') return;
     callback(session?.user || null);
   });
   return subscription;
