@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { PodcastNote } from '../types';
+import { UNCATEGORIZED } from '../types';
 
 interface NoteModalProps {
   note: PodcastNote | null;
@@ -10,14 +11,16 @@ interface NoteModalProps {
   onClose: () => void;
   onSave: (note: PodcastNote) => void;
   onDelete?: (id: string) => void;
+  categories: string[];
 }
 
-export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete }: NoteModalProps) {
+export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete, categories }: NoteModalProps) {
   const [formData, setFormData] = useState<Partial<PodcastNote>>({
     title: '',
     host: '',
     date: new Date().toISOString().split('T')[0],
     rating: 5,
+    category: '',
     tags: [],
     keyPoints: '',
     notes: '',
@@ -28,26 +31,29 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
 
   useEffect(() => {
     if (note) {
-      setFormData(note);
-      setActiveTab('view'); // 查看已有笔记时默认显示查看模式
+      setFormData({ ...note, tags: note.tags || [] });
+      setActiveTab('view');
     } else if (initialData) {
       setFormData({
         ...initialData,
+        tags: initialData.tags || [],
         keyPoints: initialData.keyPoints || '',
       });
-      setActiveTab('edit'); // AI分析后的数据默认编辑模式
+      setActiveTab('edit');
     } else {
       setFormData({
         title: '',
         host: '',
         date: new Date().toISOString().split('T')[0],
         rating: 5,
+        category: '',
         tags: [],
         keyPoints: '',
         notes: '',
         transcript: ''
       });
-      setActiveTab('edit'); // 新建笔记时默认编辑模式
+      setTagInput('');
+      setActiveTab('edit');
     }
   }, [note, initialData, isOpen]);
 
@@ -57,6 +63,7 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
     e.preventDefault();
     onSave({
       ...formData,
+      tags: formData.tags || [],
       id: note?.id || Date.now().toString(),
       keyPoints: formData.keyPoints || '',
       createdAt: note?.createdAt || Date.now()
@@ -119,16 +126,34 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
           // 查看模式
           <div className="flex-1 overflow-y-auto p-6">
             <div className="mb-6">
-              <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center gap-4 mb-3">
                 <span className="text-gray-500">{formData.host}</span>
                 <span className="text-gray-300">|</span>
                 <span className="text-gray-500">{formData.date}</span>
                 <span className="text-gray-300">|</span>
                 <div className="flex">{renderStars(formData.rating || 0)}</div>
               </div>
-              <div className="flex flex-wrap gap-2">
+              {formData.sourceUrl && (
+                <div className="mb-3">
+                  <a
+                    href={formData.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-500 hover:text-blue-600 hover:underline break-all"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {formData.sourceUrl}
+                  </a>
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {formData.category && (
+                  <span className="px-3 py-1 bg-blue-50 text-blue-600 text-sm rounded-full font-medium">
+                    {formData.category}
+                  </span>
+                )}
                 {formData.tags?.map((tag) => (
-                  <span key={tag} className="px-3 py-1 bg-blue-50 text-blue-600 text-sm rounded-full">
+                  <span key={tag} className="px-2.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">
                     {tag}
                   </span>
                 ))}
@@ -136,7 +161,6 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
             </div>
 
             <div className="space-y-6">
-              {/* 核心观点 */}
               {formData.keyPoints && (
                 <div className="bg-blue-50 rounded-xl p-5">
                   <h3 className="text-sm font-semibold text-blue-900 uppercase tracking-wide mb-3">💡 核心观点</h3>
@@ -146,7 +170,6 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
                 </div>
               )}
 
-              {/* 详细笔记 */}
               {formData.notes && (
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">📝 详细笔记</h3>
@@ -176,7 +199,6 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
                 </div>
               )}
 
-              {/* 播客原文 */}
               {formData.transcript ? (
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">📄 播客原文</h3>
@@ -258,13 +280,28 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">分类</label>
+            <select
+              value={formData.category || ''}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="">请选择分类</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+              <option value={UNCATEGORIZED}>{UNCATEGORIZED}</option>
+            </select>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">标签</label>
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
                 className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="添加标签，按回车确认"
               />
@@ -280,13 +317,13 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
               {formData.tags?.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 text-sm rounded-full"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-600 text-sm rounded-full"
                 >
                   {tag}
                   <button
                     type="button"
                     onClick={() => removeTag(tag)}
-                    className="text-blue-400 hover:text-blue-600"
+                    className="text-gray-400 hover:text-gray-600"
                   >
                     &times;
                   </button>

@@ -6,6 +6,7 @@ import { AIAnalyzeModal } from './components/AIAnalyzeModal';
 import { AuthModal } from './components/AuthModal';
 import { SyncStatus } from './components/SyncStatus';
 import type { PodcastNote } from './types';
+import { DEFAULT_CATEGORIES, UNCATEGORIZED } from './types';
 import type { AnalysisResult } from './services/openai';
 import {
   isSupabaseConfigured,
@@ -15,15 +16,18 @@ import {
   fetchNotes,
   createNote,
   updateNote,
-  deleteNote as deleteCloudNote
+  deleteNote as deleteCloudNote,
+  fetchCategories as fetchCloudCategories,
+  saveCategories as saveCloudCategories
 } from './services/supabase';
 import type { User } from '@supabase/supabase-js';
 
 function App() {
   const [notes, setNotes] = useState<PodcastNote[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAIAnalyzeOpen, setIsAIAnalyzeOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<PodcastNote | null>(null);
@@ -37,12 +41,14 @@ function App() {
   const [isCloudEnabled, setIsCloudEnabled] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
 
-  // 从 localStorage 加载数据（未登录时的主数据源）
+  // 从 localStorage 加载笔记数据
   const loadFromLocalStorage = () => {
     const stored = localStorage.getItem('podcast-notes');
     if (stored) {
       try {
-        setNotes(JSON.parse(stored));
+        const parsed = JSON.parse(stored) as PodcastNote[];
+        // 兼容旧数据：确保 tags 字段存在
+        setNotes(parsed.map(n => ({ ...n, tags: n.tags || [] })));
       } catch {
         setNotes([]);
       }
@@ -51,7 +57,21 @@ function App() {
     }
   };
 
-  // 从云端加载数据
+  // 从 localStorage 加载分类数据
+  const loadCategoriesFromLocalStorage = () => {
+    const stored = localStorage.getItem('podcast-categories');
+    if (stored) {
+      try {
+        setCategories(JSON.parse(stored));
+      } catch {
+        setCategories([...DEFAULT_CATEGORIES]);
+      }
+    } else {
+      setCategories([...DEFAULT_CATEGORIES]);
+    }
+  };
+
+  // 从云端加载笔记数据
   const loadCloudNotes = async () => {
     setIsSyncing(true);
     setCloudError(null);
@@ -67,6 +87,24 @@ function App() {
     }
   };
 
+  // 从云端加载分类数据
+  const loadCloudCategories = async () => {
+    try {
+      const cloudCats = await fetchCloudCategories();
+      if (cloudCats.length > 0) {
+        setCategories(cloudCats);
+      } else {
+        // 云端无分类，使用默认并同步
+        const defaults = [...DEFAULT_CATEGORIES];
+        setCategories(defaults);
+        await saveCloudCategories(defaults);
+      }
+    } catch (err) {
+      console.error('加载云端分类失败:', err);
+      setCategories([...DEFAULT_CATEGORIES]);
+    }
+  };
+
   // 统一的数据初始化
   useEffect(() => {
     const configured = isSupabaseConfigured();
@@ -76,12 +114,22 @@ function App() {
       getCurrentUser().then((currentUser) => {
         setUser(currentUser);
         if (currentUser) {
-          // 已登录用户，从云端加载
+          // 已登录用户，从云端加载笔记和分类
           setIsSyncing(true);
           setCloudError(null);
-          fetchNotes()
-            .then((cloudNotes) => {
+          Promise.all([
+            fetchNotes(),
+            fetchCloudCategories()
+          ])
+            .then(async ([cloudNotes, cloudCats]) => {
               setNotes(cloudNotes);
+              if (cloudCats.length > 0) {
+                setCategories(cloudCats);
+              } else {
+                const defaults = [...DEFAULT_CATEGORIES];
+                setCategories(defaults);
+                await saveCloudCategories(defaults);
+              }
               setLastSyncTime(new Date());
             })
             .catch((err) => {
@@ -93,8 +141,9 @@ function App() {
               setIsInitialized(true);
             });
         } else {
-          // 未登录，从 localStorage 加载，不连接云端
+          // 未登录，从 localStorage 加载
           loadFromLocalStorage();
+          loadCategoriesFromLocalStorage();
           setIsInitialized(true);
         }
       });
@@ -104,11 +153,13 @@ function App() {
         setUser(newUser);
         if (newUser) {
           loadCloudNotes();
+          loadCloudCategories();
         } else {
           // 用户退出登录后，恢复到登录前的本地数据
           setCloudError(null);
           setLastSyncTime(null);
           loadFromLocalStorage();
+          loadCategoriesFromLocalStorage();
         }
       });
       
@@ -118,17 +169,24 @@ function App() {
     } else {
       // Supabase 未配置，从 localStorage 加载
       loadFromLocalStorage();
+      loadCategoriesFromLocalStorage();
       setIsInitialized(true);
     }
   }, []);
 
-  // 保存到 LocalStorage，仅在未登录且初始化完成后写入
-  // 登录态数据由云端管理，不写入 localStorage，避免覆盖本地数据
+  // 保存笔记到 LocalStorage（仅未登录时）
   useEffect(() => {
     if (isInitialized && !user) {
       localStorage.setItem('podcast-notes', JSON.stringify(notes));
     }
   }, [notes, isInitialized, user]);
+
+  // 保存分类到 LocalStorage（仅未登录时）
+  useEffect(() => {
+    if (isInitialized && !user) {
+      localStorage.setItem('podcast-categories', JSON.stringify(categories));
+    }
+  }, [categories, isInitialized, user]);
 
   // 处理登录成功
   const handleAuthSuccess = () => {
@@ -137,6 +195,7 @@ function App() {
       setUser(currentUser);
       if (currentUser) {
         loadCloudNotes();
+        loadCloudCategories();
       }
     });
   };
@@ -147,15 +206,109 @@ function App() {
     setUser(null);
     setLastSyncTime(null);
     setCloudError(null);
-    // 恢复到登录前的本地数据
     loadFromLocalStorage();
+    loadCategoriesFromLocalStorage();
   };
 
-  const allTags = useMemo(() => {
-    const tags = new Set<string>();
-    notes.forEach(note => note.tags.forEach(tag => tags.add(tag)));
-    return Array.from(tags).sort();
-  }, [notes]);
+  // ===== 分类 CRUD =====
+
+  const handleAddCategory = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (trimmed === UNCATEGORIZED) return;
+    if (categories.includes(trimmed)) return;
+
+    const newCategories = [...categories, trimmed];
+    setCategories(newCategories);
+
+    if (user && isCloudEnabled) {
+      try {
+        await saveCloudCategories(newCategories);
+      } catch (err) {
+        console.error('同步分类到云端失败:', err);
+      }
+    }
+  };
+
+  const handleEditCategory = async (oldName: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    if (oldName === UNCATEGORIZED) return;
+    if (trimmed === UNCATEGORIZED) return;
+    if (trimmed !== oldName && categories.includes(trimmed)) return;
+
+    const newCategories = categories.map(c => c === oldName ? trimmed : c);
+    setCategories(newCategories);
+
+    // 联动更新笔记
+    const affectedNotes = notes.filter(n => n.category === oldName);
+    if (affectedNotes.length > 0) {
+      setNotes(prev => prev.map(n => n.category === oldName ? { ...n, category: trimmed } : n));
+    }
+
+    // 更新 selectedCategory
+    if (selectedCategory === oldName) {
+      setSelectedCategory(trimmed);
+    }
+
+    if (user && isCloudEnabled) {
+      try {
+        await saveCloudCategories(newCategories);
+        // 批量更新受影响的笔记
+        for (const note of affectedNotes) {
+          await updateNote(note.id, { category: trimmed });
+        }
+      } catch (err) {
+        console.error('同步到云端失败:', err);
+      }
+    }
+  };
+
+  const handleDeleteCategory = async (name: string) => {
+    if (name === UNCATEGORIZED) return;
+
+    const newCategories = categories.filter(c => c !== name);
+    setCategories(newCategories);
+
+    // 笔记迁移到"其他"
+    const affectedNotes = notes.filter(n => n.category === name);
+    if (affectedNotes.length > 0) {
+      setNotes(prev => prev.map(n => n.category === name ? { ...n, category: UNCATEGORIZED } : n));
+    }
+
+    // 重置选中分类
+    if (selectedCategory === name) {
+      setSelectedCategory(null);
+    }
+
+    if (user && isCloudEnabled) {
+      try {
+        await saveCloudCategories(newCategories);
+        for (const note of affectedNotes) {
+          await updateNote(note.id, { category: UNCATEGORIZED });
+        }
+      } catch (err) {
+        console.error('同步到云端失败:', err);
+      }
+    }
+  };
+
+  // ===== 计算属性 =====
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    categories.forEach(c => counts[c] = 0);
+    counts[UNCATEGORIZED] = 0;
+    notes.forEach(n => {
+      const cat = n.category || UNCATEGORIZED;
+      if (cat in counts) {
+        counts[cat]++;
+      } else {
+        counts[UNCATEGORIZED]++;
+      }
+    });
+    return counts;
+  }, [notes, categories]);
 
   const filteredNotes = useMemo(() => {
     return notes.filter(note => {
@@ -163,11 +316,15 @@ function App() {
         note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         note.host.toLowerCase().includes(searchQuery.toLowerCase()) ||
         note.notes.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        note.keyPoints.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesTag = selectedTag === null || note.tags.includes(selectedTag);
-      return matchesSearch && matchesTag;
+        note.keyPoints.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        note.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesCategory = selectedCategory === null
+        || (selectedCategory === UNCATEGORIZED
+            ? (!note.category || note.category === UNCATEGORIZED || !categories.includes(note.category))
+            : note.category === selectedCategory);
+      return matchesSearch && matchesCategory;
     });
-  }, [notes, searchQuery, selectedTag]);
+  }, [notes, searchQuery, selectedCategory, categories]);
 
   const stats = useMemo(() => ({
     total: notes.length,
@@ -176,10 +333,11 @@ function App() {
       : 0
   }), [notes]);
 
+  // ===== 笔记 CRUD =====
+
   const handleSave = async (note: PodcastNote) => {
     const exists = notes.find(n => n.id === note.id);
     
-    // 先更新本地状态
     setNotes(prev => {
       if (exists) {
         return prev.map(n => n.id === note.id ? note : n);
@@ -187,7 +345,6 @@ function App() {
       return [note, ...prev];
     });
     
-    // 如果已登录，同步到云端
     if (user && isCloudEnabled) {
       setIsSyncing(true);
       try {
@@ -195,7 +352,6 @@ function App() {
           await updateNote(note.id, note);
         } else {
           const newNote = await createNote(note);
-          // 更新本地状态，使用云端返回的 ID
           setNotes(prev => prev.map(n => 
             n.id === note.id ? { ...newNote } : n
           ));
@@ -210,10 +366,8 @@ function App() {
   };
 
   const handleDelete = async (id: string) => {
-    // 先更新本地状态
     setNotes(prev => prev.filter(n => n.id !== id));
     
-    // 如果已登录，同步删除到云端
     if (user && isCloudEnabled) {
       setIsSyncing(true);
       try {
@@ -227,6 +381,8 @@ function App() {
     }
   };
 
+  // ===== UI 操作 =====
+
   const openAddModal = () => {
     setEditingNote(null);
     setAiAnalyzedData(null);
@@ -237,11 +393,14 @@ function App() {
     setIsAIAnalyzeOpen(true);
   };
 
-  const handleAIAnalyzed = (result: AnalysisResult & { transcript?: string }) => {
+  const handleAIAnalyzed = (result: AnalysisResult & { transcript?: string; sourceUrl?: string }) => {
     const newNote: Partial<PodcastNote> = {
       ...result,
+      tags: result.tags || [],
+      category: result.category || '',
       rating: 5,
       transcript: result.transcript || '',
+      sourceUrl: result.sourceUrl || '',
     };
     setAiAnalyzedData(newNote);
     setEditingNote(null);
@@ -256,9 +415,13 @@ function App() {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar 
-        tags={allTags} 
-        selectedTag={selectedTag}
-        onTagSelect={setSelectedTag}
+        selectedCategory={selectedCategory}
+        onCategorySelect={setSelectedCategory}
+        categories={categories}
+        categoryCounts={categoryCounts}
+        onAddCategory={handleAddCategory}
+        onEditCategory={handleEditCategory}
+        onDeleteCategory={handleDeleteCategory}
         stats={stats}
         syncStatus={
           <SyncStatus
@@ -278,7 +441,7 @@ function App() {
             <div className="flex-1 max-w-xl">
               <input
                 type="text"
-                placeholder="搜索播客标题、主播、观点或笔记..."
+                placeholder="搜索播客标题、主播、标签、观点或笔记..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
@@ -337,6 +500,7 @@ function App() {
                   key={note.id} 
                   note={note} 
                   onClick={() => openEditModal(note)}
+                  onDelete={handleDelete}
                 />
               ))}
             </div>
@@ -351,6 +515,7 @@ function App() {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
         onDelete={editingNote ? handleDelete : undefined}
+        categories={categories}
       />
 
       <AIAnalyzeModal

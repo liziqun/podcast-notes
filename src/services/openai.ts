@@ -5,6 +5,8 @@ export interface AnalysisResult {
   host: string;
   date: string;
   tags: string[];
+  category: string;
+  summary: string;
   keyPoints: string;
   notes: string;
 }
@@ -60,6 +62,15 @@ ${transcript.slice(0, 12000)}...
 ### 4. tags（标签，3-5个）
 - 提炼核心主题关键词
 - 示例：["AI", "效率悖论", "经济学", "技术反思"]
+
+### 4.5 category（分类，必选1个）
+- 从以下9个分类中选择最匹配的一个：商业、科技、人文、健康、娱乐、职场、饮食、艺术、旅行
+- 根据播客核心内容选择最贴切的分类
+
+### 4.6 summary（一句话概括）
+- 用一句话（30-60字）概括这期播客的核心内容
+- 要求简洁有力，让读者快速了解这期节目讲了什么
+- 示例："探讨AI效率悖论：技术提升效率反而加剧内卷，提出'反效率'防护机制守护注意力主权"
 
 ### 5. keyPoints（主要内容）
 用2-3段话提炼该期播客的主要内容和核心观点，总字数控制在300-450字。要求：
@@ -155,6 +166,8 @@ ${transcript.slice(0, 12000)}...
   "host": "主播名称",
   "date": "YYYY-MM-DD",
   "tags": ["标签1", "标签2", "标签3"],
+  "category": "从9个分类中选1个",
+  "summary": "一句话概括这期播客的核心内容（30-60字）",
   "keyPoints": "用2-3段话概括播客核心内容，每段100-150字，段落间有逻辑递进...",
   "notes": "一句话核心概括\\n\\n---\\n\\n**📻 节目基本信息**\\n\\n| 项目 | 内容 |\\n|------|------|\\n| 节目名称 | xxx |\\n..."
 }`;
@@ -285,6 +298,8 @@ function parseAPIResponse(data: any): AnalysisResult {
         host: result.host || '未知主播',
         date: result.date || new Date().toISOString().split('T')[0],
         tags: Array.isArray(result.tags) ? result.tags : [],
+        category: result.category || '',
+        summary: result.summary || '',
         keyPoints: typeof result.keyPoints === 'string' ? result.keyPoints : '',
         notes: result.notes || '',
       };

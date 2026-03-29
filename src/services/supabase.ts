@@ -74,10 +74,13 @@ export async function fetchNotes(): Promise<PodcastNote[]> {
     host: item.host || '',
     date: item.date || '',
     rating: item.rating || 5,
+    category: item.category || '',
     tags: item.tags || [],
+    summary: item.summary || '',
     keyPoints: item.key_points || '',
     notes: item.notes || '',
     transcript: item.transcript || '',
+    sourceUrl: item.source_url || '',
     createdAt: new Date(item.created_at).getTime(),
   }));
 }
@@ -98,10 +101,13 @@ export async function createNote(note: Omit<PodcastNote, 'id' | 'createdAt'>): P
       host: note.host,
       date: note.date,
       rating: note.rating,
+      category: note.category,
       tags: note.tags,
+      summary: note.summary,
       key_points: note.keyPoints,
       notes: note.notes,
       transcript: note.transcript,
+      source_url: note.sourceUrl,
     })
     .select()
     .single();
@@ -117,10 +123,13 @@ export async function createNote(note: Omit<PodcastNote, 'id' | 'createdAt'>): P
     host: data.host || '',
     date: data.date || '',
     rating: data.rating || 5,
+    category: data.category || '',
     tags: data.tags || [],
+    summary: data.summary || '',
     keyPoints: data.key_points || '',
     notes: data.notes || '',
     transcript: data.transcript || '',
+    sourceUrl: data.source_url || '',
     createdAt: new Date(data.created_at).getTime(),
   };
 }
@@ -133,10 +142,13 @@ export async function updateNote(id: string, note: Partial<PodcastNote>): Promis
   if (note.host !== undefined) updateData.host = note.host;
   if (note.date !== undefined) updateData.date = note.date;
   if (note.rating !== undefined) updateData.rating = note.rating;
+  if (note.category !== undefined) updateData.category = note.category;
   if (note.tags !== undefined) updateData.tags = note.tags;
+  if (note.summary !== undefined) updateData.summary = note.summary;
   if (note.keyPoints !== undefined) updateData.key_points = note.keyPoints;
   if (note.notes !== undefined) updateData.notes = note.notes;
   if (note.transcript !== undefined) updateData.transcript = note.transcript;
+  if (note.sourceUrl !== undefined) updateData.source_url = note.sourceUrl;
   
   updateData.updated_at = new Date().toISOString();
 
@@ -167,4 +179,57 @@ export async function deleteNote(id: string): Promise<void> {
 // 检查 Supabase 是否已配置
 export function isSupabaseConfigured(): boolean {
   return Boolean(supabaseUrl && supabaseAnonKey);
+}
+
+// 分类数据操作
+export async function fetchCategories(): Promise<string[]> {
+  if (!supabase) throw new Error('Supabase 未配置');
+  const { data, error } = await supabase
+    .from('categories')
+    .select('name, sort_order')
+    .order('sort_order', { ascending: true });
+
+  if (error) {
+    console.error('获取分类失败:', error);
+    throw error;
+  }
+
+  return (data || []).map(item => item.name);
+}
+
+export async function saveCategories(categories: string[]): Promise<void> {
+  if (!supabase) throw new Error('Supabase 未配置');
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error('用户未登录');
+  }
+
+  // 全量覆盖：先删除当前用户的所有分类，再插入新的
+  const { error: deleteError } = await supabase
+    .from('categories')
+    .delete()
+    .eq('user_id', user.id);
+
+  if (deleteError) {
+    console.error('删除旧分类失败:', deleteError);
+    throw deleteError;
+  }
+
+  if (categories.length === 0) return;
+
+  const rows = categories.map((name, index) => ({
+    user_id: user.id,
+    name,
+    sort_order: index,
+  }));
+
+  const { error: insertError } = await supabase
+    .from('categories')
+    .insert(rows);
+
+  if (insertError) {
+    console.error('保存分类失败:', insertError);
+    throw insertError;
+  }
 }

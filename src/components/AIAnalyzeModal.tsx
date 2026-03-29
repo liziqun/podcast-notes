@@ -14,7 +14,7 @@ import type { PodcastMetadata, TranscribeProgress } from '../types';
 interface AIAnalyzeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAnalyzed: (result: AnalysisResult & { transcript?: string }) => void;
+  onAnalyzed: (result: AnalysisResult & { transcript?: string; sourceUrl?: string }) => void;
 }
 
 const API_KEY_STORAGE_KEY = 'podcast-notes-api-key';
@@ -22,8 +22,9 @@ const DASHSCOPE_KEY_STORAGE_KEY = 'podcast-notes-dashscope-key';
 
 export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalProps) {
   // 共享状态
-  const [activeTab, setActiveTab] = useState<'paste' | 'url'>('paste');
+  const [activeTab, setActiveTab] = useState<'paste' | 'url'>('url');
   const [apiKey, setApiKey] = useState('');
+  const [apiKeyExpanded, setApiKeyExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Tab 1: 粘贴原文 相关状态
@@ -225,13 +226,14 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
 
       const analysisResult = await analyzePodcastTranscript(transcriptText, apiKey);
 
-      // 合并结果
-      const finalResult: AnalysisResult & { transcript?: string } = {
+      // 合并结果：解析元数据优先于 AI 分析结果
+      const finalResult: AnalysisResult & { transcript?: string; sourceUrl?: string } = {
         ...analysisResult,
-        title: analysisResult.title || podcastMeta.title,
-        host: analysisResult.host || podcastMeta.host,
-        date: analysisResult.date || podcastMeta.date,
+        title: podcastMeta.title || analysisResult.title,
+        host: podcastMeta.host || analysisResult.host,
+        date: podcastMeta.date || analysisResult.date,
         transcript: transcriptText,
+        sourceUrl: podcastUrl.trim(),
       };
 
       setTranscribeProgress({
@@ -329,7 +331,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
                 : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
             }`}
           >
-            粘贴原文
+            文本上传
           </button>
           <button
             onClick={() => !isBusy && setActiveTab('url')}
@@ -349,32 +351,6 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
           {activeTab === 'paste' ? (
             /* ===== Tab 1: 粘贴原文 ===== */
             <>
-              {/* API Key */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-sm font-medium text-gray-700">
-                    API Key
-                    <span className="text-gray-400 font-normal ml-2">(支持 iDealab / OpenAI / Kimi)</span>
-                  </label>
-                  {apiKey && (
-                    <button type="button" onClick={clearApiKey} className="text-xs text-red-500 hover:text-red-600">
-                      清除已保存的 Key
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => saveApiKey(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="sk-... 或 iDealab API Key"
-                  disabled={isBusy}
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  {apiKey ? 'API Key 已自动保存，下次无需重新输入' : 'API Key 仅保存在本地浏览器'}
-                </p>
-              </div>
-
               {/* 文件上传 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -393,7 +369,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isBusy}
-                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
+                  className="w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
                 >
                   <span>+</span>
                   {transcript ? '重新选择文件' : '点击选择文件'}
@@ -417,62 +393,55 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
                   <p className="text-xs text-gray-400 mt-1">已输入 {transcript.length} 字符</p>
                 )}
               </div>
+
+              {/* API Key - 折叠区域 */}
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setApiKeyExpanded(!apiKeyExpanded)}
+                  className="w-full px-4 py-2.5 flex items-center justify-between text-sm hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-600 font-medium">API 配置</span>
+                    {apiKey ? (
+                      <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">已配置</span>
+                    ) : (
+                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">未配置</span>
+                    )}
+                  </div>
+                  <span className={`text-gray-400 text-xs transition-transform ${apiKeyExpanded ? 'rotate-180' : ''}`}>&#9660;</span>
+                </button>
+                {apiKeyExpanded && (
+                  <div className="px-4 pb-4 border-t border-gray-100 pt-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-sm font-medium text-gray-700">
+                        API Key
+                        <span className="text-gray-400 font-normal ml-2">(支持 iDealab)</span>
+                      </label>
+                      {apiKey && (
+                        <button type="button" onClick={clearApiKey} className="text-xs text-red-500 hover:text-red-600">
+                          清除已保存的 Key
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={(e) => saveApiKey(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="sk-... 或 iDealab API Key"
+                      disabled={isBusy}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      {apiKey ? 'API Key 已自动保存，下次无需重新输入' : 'API Key 仅保存在本地浏览器'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             /* ===== Tab 2: 播客链接 ===== */
             <>
-              {/* 百炼 API Key */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-sm font-medium text-gray-700">
-                    百炼 API Key
-                    <span className="text-gray-400 font-normal ml-2">(用于语音转录)</span>
-                  </label>
-                  {dashscopeApiKey && (
-                    <button type="button" onClick={clearDashscopeKey} className="text-xs text-red-500 hover:text-red-600">
-                      清除
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="password"
-                  value={dashscopeApiKey}
-                  onChange={(e) => saveDashscopeKey(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="sk-..."
-                  disabled={isProcessing}
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  {dashscopeApiKey ? '已自动保存' : '阿里云百炼平台的 API Key，仅保存在本地'}
-                </p>
-              </div>
-
-              {/* iDealab API Key */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-sm font-medium text-gray-700">
-                    iDealab API Key
-                    <span className="text-gray-400 font-normal ml-2">(用于 AI 分析)</span>
-                  </label>
-                  {apiKey && (
-                    <button type="button" onClick={clearApiKey} className="text-xs text-red-500 hover:text-red-600">
-                      清除
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => saveApiKey(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="iDealab API Key"
-                  disabled={isProcessing}
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  {apiKey ? '已自动保存' : '与"粘贴原文"共用同一个 Key'}
-                </p>
-              </div>
-
               {/* 链接输入 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -524,6 +493,75 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
                   {renderProgressSteps()}
                 </div>
               )}
+
+              {/* API 配置 - 折叠区域 */}
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setApiKeyExpanded(!apiKeyExpanded)}
+                  className="w-full px-4 py-2.5 flex items-center justify-between text-sm hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-600 font-medium">API 配置</span>
+                    {dashscopeApiKey && apiKey ? (
+                      <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">已配置</span>
+                    ) : (
+                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                        {!dashscopeApiKey && !apiKey ? '未配置' : '部分配置'}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-gray-400 text-xs transition-transform ${apiKeyExpanded ? 'rotate-180' : ''}`}>&#9660;</span>
+                </button>
+                {apiKeyExpanded && (
+                  <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-sm font-medium text-gray-700">
+                          百炼 API Key
+                          <span className="text-gray-400 font-normal ml-2">(用于语音转录)</span>
+                        </label>
+                        {dashscopeApiKey && (
+                          <button type="button" onClick={clearDashscopeKey} className="text-xs text-red-500 hover:text-red-600">清除</button>
+                        )}
+                      </div>
+                      <input
+                        type="password"
+                        value={dashscopeApiKey}
+                        onChange={(e) => saveDashscopeKey(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="sk-..."
+                        disabled={isProcessing}
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        {dashscopeApiKey ? '已自动保存' : '阿里云百炼平台的 API Key，仅保存在本地'}
+                      </p>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-sm font-medium text-gray-700">
+                          iDealab API Key
+                          <span className="text-gray-400 font-normal ml-2">(用于 AI 分析)</span>
+                        </label>
+                        {apiKey && (
+                          <button type="button" onClick={clearApiKey} className="text-xs text-red-500 hover:text-red-600">清除</button>
+                        )}
+                      </div>
+                      <input
+                        type="password"
+                        value={apiKey}
+                        onChange={(e) => saveApiKey(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="iDealab API Key"
+                        disabled={isProcessing}
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        {apiKey ? '已自动保存' : '与"文本上传"共用同一个 Key'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           )}
 
