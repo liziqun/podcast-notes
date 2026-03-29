@@ -413,7 +413,7 @@ function App() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-[#fafafa]">
       <Sidebar 
         selectedCategory={selectedCategory}
         onCategorySelect={setSelectedCategory}
@@ -435,66 +435,61 @@ function App() {
         }
       />
       
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-10">
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-10">
             <div className="flex-1 max-w-xl">
               <input
                 type="text"
                 placeholder="搜索播客标题、主播、标签、观点或笔记..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
+                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 focus:border-gray-300 text-sm placeholder:text-gray-400"
               />
             </div>
-            <div className="flex gap-3 ml-4">
+            <div className="flex gap-2 ml-4">
               <button
                 onClick={openAIAnalyze}
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-colors font-medium shadow-sm flex items-center gap-2"
+                className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
               >
-                <span>✨</span>
                 智能添加
               </button>
               <button
                 onClick={openAddModal}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium shadow-sm flex items-center gap-2"
+                className="px-5 py-2.5 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
               >
-                <span>+</span>
                 添加笔记
               </button>
             </div>
           </div>
 
           {cloudError ? (
-            <div className="text-center py-16">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-50 mb-4">
-                <span className="text-2xl text-red-400">!</span>
-              </div>
-              <p className="text-red-500 text-lg font-medium">{cloudError}</p>
+            <div className="text-center py-20">
+              <p className="text-gray-400 text-sm mb-1">{cloudError}</p>
               <button
                 onClick={loadCloudNotes}
                 disabled={isSyncing}
-                className="mt-4 px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50"
+                className="mt-3 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium disabled:opacity-50"
               >
                 {isSyncing ? '加载中...' : '重新加载'}
               </button>
             </div>
           ) : filteredNotes.length === 0 ? (
-            <div className="text-center py-20">
+            <div className="text-center py-24">
               {notes.length === 0 ? (
                 <>
-                  <p className="text-gray-400 text-lg">还没有播客笔记</p>
-                  <p className="text-gray-400 mt-2">点击"智能添加"或"添加笔记"开始记录</p>
+                  <p className="text-gray-400 text-sm">还没有播客笔记</p>
+                  <p className="text-gray-300 mt-1 text-sm">点击"智能添加"或"添加笔记"开始记录</p>
                 </>
               ) : (
                 <>
-                  <p className="text-gray-400 text-lg">没有找到匹配的播客笔记</p>
-                  <p className="text-gray-400 mt-2">试试调整搜索关键词或筛选条件</p>
+                  <p className="text-gray-400 text-sm">没有找到匹配的播客笔记</p>
+                  <p className="text-gray-300 mt-1 text-sm">试试调整搜索关键词或筛选条件</p>
                 </>
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredNotes.map(note => (
                 <PodcastCard 
                   key={note.id} 

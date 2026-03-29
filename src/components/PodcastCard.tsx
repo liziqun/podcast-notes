@@ -11,8 +11,8 @@ export function PodcastCard({ note, onClick, onDelete }: PodcastCardProps) {
     return Array.from({ length: 5 }, (_, i) => (
       <span
         key={i}
-        className={`text-sm ${
-          i < rating ? 'text-yellow-400' : 'text-gray-200'
+        className={`text-xs ${
+          i < rating ? 'text-amber-400' : 'text-gray-200'
         }`}
       >
         ★
@@ -32,25 +32,25 @@ export function PodcastCard({ note, onClick, onDelete }: PodcastCardProps) {
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer flex flex-col"
+      className="bg-white rounded-lg p-5 border border-gray-100 hover:border-gray-200 transition-colors cursor-pointer flex flex-col"
     >
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex gap-0.5">{renderStars(note.rating)}</div>
         {note.category && (
-          <span className="text-xs text-gray-400 font-medium">
+          <span className="text-xs text-gray-400">
             {note.category}
           </span>
         )}
       </div>
 
-      <h3 className="font-semibold text-gray-900 text-lg leading-tight mb-1">
+      <h3 className="font-medium text-gray-900 text-base leading-snug mb-1">
         {note.title}
       </h3>
 
       {note.tags?.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1 mb-2">
+        <div className="flex flex-wrap gap-1 mt-1.5 mb-2">
           {note.tags.map((tag) => (
-            <span key={tag} className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">
+            <span key={tag} className="px-2 py-0.5 bg-gray-50 text-gray-400 text-xs rounded">
               {tag}
             </span>
           ))}
@@ -58,7 +58,7 @@ export function PodcastCard({ note, onClick, onDelete }: PodcastCardProps) {
       )}
 
       {summaryText && (
-        <div className="text-sm text-gray-600 line-clamp-4 mt-8">
+        <div className="text-sm text-gray-500 line-clamp-4 mt-8 leading-relaxed">
           {summaryText}
         </div>
       )}
@@ -73,11 +73,11 @@ export function PodcastCard({ note, onClick, onDelete }: PodcastCardProps) {
                 onDelete(note.id);
               }
             }}
-            className="text-xs text-gray-300 hover:text-red-500 transition-colors"
+            className="text-xs text-gray-300 hover:text-red-400 transition-colors"
           >
             删除
           </button>
-          <span className="text-xs text-blue-600 font-medium">查看详情 →</span>
+          <span className="text-xs text-gray-500 font-medium">查看详情</span>
         </div>
       </div>
     </div>

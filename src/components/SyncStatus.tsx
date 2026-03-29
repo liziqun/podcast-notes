@@ -23,8 +23,8 @@ export function SyncStatus({
   // 未配置 Supabase
   if (!isSupabaseConfigured) {
     return (
-      <div className="px-3 py-2 text-xs text-gray-400">
-        云端同步未配置
+      <div className="px-2 py-1.5 text-xs text-gray-300">
+        未配置
       </div>
     );
   }
@@ -34,12 +34,9 @@ export function SyncStatus({
     return (
       <button
         onClick={onLoginClick}
-        className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-2"
+        className="w-full px-2 py-1.5 text-left text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-        </svg>
-        登录开启云端同步
+        登录开启同步
       </button>
     );
   }
@@ -62,40 +59,38 @@ export function SyncStatus({
     <div className="relative">
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+        className="w-full px-2 py-1.5 text-left text-sm hover:bg-gray-50 rounded-md transition-colors flex items-center gap-2"
       >
         {isSyncing ? (
           <>
-            <svg className="w-4 h-4 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span className="text-blue-600">同步中...</span>
+            <span className="text-gray-400 text-xs">同步中...</span>
           </>
         ) : (
           <>
-            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="text-gray-600">已同步</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0"></span>
+            <span className="text-gray-400 text-xs">已同步</span>
           </>
         )}
       </button>
 
       {showDropdown && (
-        <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-10">
-          <div className="text-xs text-gray-500 mb-2">
-            账号: {user.email}
+        <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-100 rounded-lg shadow-sm p-3 z-10">
+          <div className="text-xs text-gray-400 mb-1.5">
+            {user.email}
           </div>
-          <div className="text-xs text-gray-500 mb-3">
-            上次同步: {formatLastSync(lastSyncTime)}
+          <div className="text-xs text-gray-400 mb-3">
+            同步: {formatLastSync(lastSyncTime)}
           </div>
           <button
             onClick={() => {
               onLogoutClick();
               setShowDropdown(false);
             }}
-            className="w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
+            className="w-full px-2 py-1.5 text-xs text-gray-400 hover:text-red-400 hover:bg-gray-50 rounded-md transition-colors text-left"
           >
             退出登录
           </button>

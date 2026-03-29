@@ -28,8 +28,10 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
   });
   const [tagInput, setTagInput] = useState('');
   const [activeTab, setActiveTab] = useState<'edit' | 'view'>('view');
+  const [transcriptExpanded, setTranscriptExpanded] = useState(false);
 
   useEffect(() => {
+    setTranscriptExpanded(false);
     if (note) {
       setFormData({ ...note, tags: note.tags || [] });
       setActiveTab('view');
@@ -84,25 +86,25 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
-      <span key={i} className={`text-lg ${i < rating ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+      <span key={i} className={`text-base ${i < rating ? 'text-amber-400' : 'text-gray-200'}`}>★</span>
     ));
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-lg font-semibold text-gray-900">
               {note ? formData.title : '添加播客笔记'}
             </h2>
             {note && (
-              <div className="flex bg-gray-100 rounded-lg p-1">
+              <div className="flex bg-gray-100 rounded-md p-0.5">
                 <button
                   type="button"
                   onClick={() => setActiveTab('view')}
-                  className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                    activeTab === 'view' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                    activeTab === 'view' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'
                   }`}
                 >
                   查看
@@ -110,8 +112,8 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
                 <button
                   type="button"
                   onClick={() => setActiveTab('edit')}
-                  className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                    activeTab === 'edit' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                    activeTab === 'edit' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'
                   }`}
                 >
                   编辑
@@ -119,18 +121,18 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
               </div>
             )}
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-xl transition-colors">&times;</button>
         </div>
 
         {activeTab === 'view' && note ? (
           // 查看模式
           <div className="flex-1 overflow-y-auto p-6">
             <div className="mb-6">
-              <div className="flex items-center gap-4 mb-3">
+              <div className="flex items-center gap-3 mb-3 text-sm">
                 <span className="text-gray-500">{formData.host}</span>
-                <span className="text-gray-300">|</span>
+                <span className="text-gray-200">|</span>
                 <span className="text-gray-500">{formData.date}</span>
-                <span className="text-gray-300">|</span>
+                <span className="text-gray-200">|</span>
                 <div className="flex">{renderStars(formData.rating || 0)}</div>
               </div>
               {formData.sourceUrl && (
@@ -139,7 +141,7 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
                     href={formData.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-blue-500 hover:text-blue-600 hover:underline break-all"
+                    className="text-sm text-gray-400 hover:text-gray-600 hover:underline break-all"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {formData.sourceUrl}
@@ -148,12 +150,12 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
               )}
               <div className="flex flex-wrap items-center gap-2">
                 {formData.category && (
-                  <span className="px-3 py-1 bg-blue-50 text-blue-600 text-sm rounded-full font-medium">
+                  <span className="px-2.5 py-0.5 bg-gray-100 text-gray-600 text-sm rounded font-medium">
                     {formData.category}
                   </span>
                 )}
                 {formData.tags?.map((tag) => (
-                  <span key={tag} className="px-2.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">
+                  <span key={tag} className="px-2 py-0.5 bg-gray-50 text-gray-400 text-xs rounded">
                     {tag}
                   </span>
                 ))}
@@ -162,9 +164,9 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
 
             <div className="space-y-6">
               {formData.keyPoints && (
-                <div className="bg-blue-50 rounded-xl p-5">
-                  <h3 className="text-sm font-semibold text-blue-900 uppercase tracking-wide mb-3">💡 核心观点</h3>
-                  <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                <div className="bg-gray-50 rounded-lg p-5">
+                  <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">核心观点</h3>
+                  <div className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm">
                     {formData.keyPoints}
                   </div>
                 </div>
@@ -172,25 +174,25 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
 
               {formData.notes && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">📝 详细笔记</h3>
-                  <div className="bg-gray-50 rounded-xl p-6 text-gray-700 leading-relaxed markdown-content">
+                  <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">详细笔记</h3>
+                  <div className="bg-gray-50 rounded-lg p-6 text-gray-700 leading-relaxed markdown-content">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
-                        h1: ({ children }) => <h1 className="text-xl font-bold text-gray-900 mt-6 mb-4 pb-2 border-b border-gray-200">{children}</h1>,
-                        h2: ({ children }) => <h2 className="text-lg font-semibold text-gray-800 mt-5 mb-3 flex items-center gap-2">{children}</h2>,
-                        h3: ({ children }) => <h3 className="text-base font-semibold text-gray-800 mt-4 mb-2">{children}</h3>,
-                        p: ({ children }) => <p className="mb-4 text-gray-700 leading-relaxed">{children}</p>,
-                        ul: ({ children }) => <ul className="mb-4 space-y-2 ml-4">{children}</ul>,
-                        ol: ({ children }) => <ol className="mb-4 space-y-2 ml-4 list-decimal">{children}</ol>,
-                        li: ({ children }) => <li className="text-gray-700 leading-relaxed">{children}</li>,
-                        blockquote: ({ children }) => <blockquote className="border-l-4 border-blue-400 pl-4 py-2 my-4 bg-blue-50 rounded-r-lg italic text-gray-600">{children}</blockquote>,
-                        table: ({ children }) => <div className="overflow-x-auto my-4"><table className="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm text-sm">{children}</table></div>,
-                        thead: ({ children }) => <thead className="bg-gray-100">{children}</thead>,
-                        th: ({ children }) => <th className="border border-gray-200 px-3 py-2 text-left font-semibold text-gray-800 whitespace-nowrap">{children}</th>,
-                        td: ({ children }) => <td className="border border-gray-200 px-3 py-2 text-gray-700">{children}</td>,
-                        hr: () => <hr className="my-6 border-gray-200" />,
-                        strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                        h1: ({ children }) => <h1 className="text-lg font-semibold text-gray-900 mt-6 mb-4 pb-2 border-b border-gray-200">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-base font-medium text-gray-800 mt-5 mb-3">{children}</h2>,
+                        h3: ({ children }) => <h3 className="text-sm font-medium text-gray-800 mt-4 mb-2">{children}</h3>,
+                        p: ({ children }) => <p className="mb-3 text-gray-600 leading-relaxed text-sm">{children}</p>,
+                        ul: ({ children }) => <ul className="mb-3 space-y-1.5 ml-4">{children}</ul>,
+                        ol: ({ children }) => <ol className="mb-3 space-y-1.5 ml-4 list-decimal">{children}</ol>,
+                        li: ({ children }) => <li className="text-gray-600 leading-relaxed text-sm">{children}</li>,
+                        blockquote: ({ children }) => <blockquote className="border-l-2 border-gray-300 pl-4 py-1 my-3 text-gray-500 text-sm">{children}</blockquote>,
+                        table: ({ children }) => <div className="overflow-x-auto my-4"><table className="w-full border-collapse text-sm">{children}</table></div>,
+                        thead: ({ children }) => <thead className="border-b border-gray-200">{children}</thead>,
+                        th: ({ children }) => <th className="px-3 py-2 text-left font-medium text-gray-700 text-sm">{children}</th>,
+                        td: ({ children }) => <td className="px-3 py-2 text-gray-600 border-b border-gray-100 text-sm">{children}</td>,
+                        hr: () => <hr className="my-6 border-gray-100" />,
+                        strong: ({ children }) => <strong className="font-medium text-gray-800">{children}</strong>,
                       }}
                     >
                       {formData.notes}
@@ -201,20 +203,29 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
 
               {formData.transcript ? (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">📄 播客原文</h3>
-                  <div className="bg-gray-50 rounded-xl p-5 text-gray-600 leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto text-sm">
-                    {formData.transcript}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTranscriptExpanded(!transcriptExpanded)}
+                    className="flex items-center gap-2 mb-3 group"
+                  >
+                    <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider">播客原文</h3>
+                    <span className={`text-gray-300 text-xs transition-transform ${transcriptExpanded ? 'rotate-180' : ''}`}>&#9660;</span>
+                  </button>
+                  {transcriptExpanded && (
+                    <div className="bg-gray-50 rounded-lg p-5 text-gray-500 leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto text-sm">
+                      {formData.transcript}
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="text-center py-8 bg-gray-50 rounded-xl">
-                  <p className="text-gray-400">暂无播客原文</p>
+                <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  <p className="text-gray-400 text-sm">暂无播客原文</p>
                   <button
                     type="button"
                     onClick={() => setActiveTab('edit')}
-                    className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                    className="mt-2 text-gray-500 hover:text-gray-700 text-sm font-medium"
                   >
-                    切换到编辑模式添加原文 →
+                    切换到编辑模式添加原文
                   </button>
                 </div>
               )}
@@ -223,27 +234,27 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
         ) : (
           // 编辑模式
           <>
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">播客标题</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">播客标题</label>
               <input
                 type="text"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
                 placeholder="输入播客标题"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">主播/频道</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">主播/频道</label>
               <input
                 type="text"
                 required
                 value={formData.host}
                 onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
                 placeholder="主播或频道名称"
               />
             </div>
@@ -251,25 +262,25 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">收听日期</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">收听日期</label>
               <input
                 type="date"
                 required
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">评分</label>
-              <div className="flex gap-2">
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">评分</label>
+              <div className="flex gap-1.5">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
                     key={star}
                     type="button"
                     onClick={() => setFormData({ ...formData, rating: star })}
-                    className={`text-2xl transition-colors ${
-                      star <= (formData.rating || 0) ? 'text-yellow-400' : 'text-gray-200'
+                    className={`text-xl transition-colors ${
+                      star <= (formData.rating || 0) ? 'text-amber-400' : 'text-gray-200'
                     }`}
                   >
                     ★
@@ -280,11 +291,11 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">分类</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">分类</label>
             <select
               value={formData.category || ''}
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 bg-white text-sm"
             >
               <option value="">请选择分类</option>
               {categories.map((cat) => (
@@ -295,20 +306,20 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">标签</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">标签</label>
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
                 placeholder="添加标签，按回车确认"
               />
               <button
                 type="button"
                 onClick={addTag}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                className="px-3 py-2 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors text-sm"
               >
                 添加
               </button>
@@ -317,7 +328,7 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
               {formData.tags?.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-600 text-sm rounded-full"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-50 text-gray-500 text-sm rounded"
                 >
                   {tag}
                   <button
@@ -333,61 +344,61 @@ export function NoteModal({ note, initialData, isOpen, onClose, onSave, onDelete
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">核心观点</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">核心观点</label>
             <textarea
               value={formData.keyPoints}
               onChange={(e) => setFormData({ ...formData, keyPoints: e.target.value })}
               rows={6}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 resize-none text-sm"
               placeholder="概括播客的核心内容，包含主要观点和关键论据..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">详细笔记</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">详细笔记</label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={4}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 resize-none text-sm"
               placeholder="记录你的思考、感悟或行动计划..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">播客原文</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">播客原文</label>
             <textarea
               value={formData.transcript}
               onChange={(e) => setFormData({ ...formData, transcript: e.target.value })}
               rows={6}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 resize-none text-sm"
               placeholder="粘贴播客的转录文本或原文内容..."
             />
           </div>
         </form>
 
-        <div className="p-6 border-t border-gray-100 flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
           {note && onDelete ? (
             <button
               type="button"
               onClick={() => { onDelete(note.id); onClose(); }}
-              className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              className="px-3 py-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors text-sm"
             >
               删除
             </button>
           ) : <div />}
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="px-4 py-2 text-gray-500 hover:bg-gray-50 rounded-lg transition-colors text-sm"
             >
               取消
             </button>
             <button
               type="submit"
               onClick={handleSubmit}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              className="px-5 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
             >
               保存
             </button>

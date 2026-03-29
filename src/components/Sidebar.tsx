@@ -94,7 +94,7 @@ export function Sidebar({
               if (e.key === 'Escape') setEditingCategory(null);
             }}
             onBlur={handleEditSubmit}
-            className="flex-1 px-2 py-1.5 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-400"
             maxLength={20}
           />
         </div>
@@ -105,10 +105,10 @@ export function Sidebar({
       <button
         key={cat}
         onClick={() => onCategorySelect(cat)}
-        className={`group w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${
+        className={`group w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between ${
           isSelected
-            ? 'bg-blue-50 text-blue-600 font-medium'
-            : 'text-gray-600 hover:bg-gray-50'
+            ? 'bg-gray-100 text-gray-900 font-medium'
+            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
         }`}
       >
         <span className="truncate">{cat}</span>
@@ -142,8 +142,8 @@ export function Sidebar({
               </span>
             </span>
           )}
-          <span className={`text-xs ml-1 ${isSelected ? 'text-blue-400' : 'text-gray-400'}`}>
-            ({count})
+          <span className={`text-xs tabular-nums ml-1 ${isSelected ? 'text-gray-500' : 'text-gray-400'}`}>
+            {count}
           </span>
         </span>
       </button>
@@ -151,54 +151,54 @@ export function Sidebar({
   };
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 min-h-screen p-6">
+    <aside className="w-60 bg-white border-r border-gray-100 min-h-screen p-6 flex flex-col">
       <div className="mb-8">
-        <h1 className="text-xl font-bold text-gray-900 mb-1">🎧 播客笔记</h1>
-        <p className="text-sm text-gray-500">记录你的收听收获</p>
+        <h1 className="text-base font-semibold text-gray-900 tracking-tight">播客笔记</h1>
+        <p className="text-xs text-gray-400 mt-0.5">记录你的收听收获</p>
       </div>
 
-      <div className="mb-8 p-4 bg-gray-50 rounded-xl">
+      <div className="mb-8">
         <div className="grid grid-cols-2 gap-4">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-            <p className="text-xs text-gray-500">已记录</p>
+          <div>
+            <p className="text-2xl font-semibold text-gray-900 tabular-nums">{stats.total}</p>
+            <p className="text-xs text-gray-400 mt-0.5">已记录</p>
           </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-gray-900">{stats.avgRating.toFixed(1)}</p>
-            <p className="text-xs text-gray-500">平均评分</p>
+          <div>
+            <p className="text-2xl font-semibold text-gray-900 tabular-nums">{stats.avgRating.toFixed(1)}</p>
+            <p className="text-xs text-gray-400 mt-0.5">平均评分</p>
           </div>
         </div>
       </div>
 
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-            分类筛选
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+            分类
           </h2>
           <button
             onClick={() => { setIsAdding(true); setNewCategoryName(''); }}
-            className="p-1 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-1 rounded hover:bg-gray-100 text-gray-300 hover:text-gray-500 transition-colors"
             title="添加分类"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </button>
         </div>
 
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {/* 全部笔记 */}
           <button
             onClick={() => onCategorySelect(null)}
-            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${
+            className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between ${
               selectedCategory === null
-                ? 'bg-blue-50 text-blue-600 font-medium'
-                : 'text-gray-600 hover:bg-gray-50'
+                ? 'bg-gray-100 text-gray-900 font-medium'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
             }`}
           >
             <span>全部笔记</span>
-            <span className={`text-xs ${selectedCategory === null ? 'text-blue-400' : 'text-gray-400'}`}>
-              ({stats.total})
+            <span className={`text-xs tabular-nums ${selectedCategory === null ? 'text-gray-500' : 'text-gray-400'}`}>
+              {stats.total}
             </span>
           </button>
 
@@ -221,7 +221,7 @@ export function Sidebar({
                   if (!newCategoryName.trim()) setIsAdding(false);
                   else handleAddSubmit();
                 }}
-                className="flex-1 px-2 py-1.5 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-400"
                 placeholder="输入分类名称"
                 maxLength={20}
               />
@@ -234,8 +234,8 @@ export function Sidebar({
       </div>
 
       {syncStatus && (
-        <div className="mt-auto pt-6 border-t border-gray-200">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">
+        <div className="mt-auto pt-6 border-t border-gray-100">
+          <h2 className="text-xs font-medium text-gray-900 mb-2 uppercase tracking-wider">
             云端同步
           </h2>
           {syncStatus}

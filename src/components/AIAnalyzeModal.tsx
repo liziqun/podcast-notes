@@ -271,21 +271,21 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
     ];
 
     return (
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {steps.map((step) => {
           const isActive = transcribeProgress.phase === step.key;
           const isDone = step.done;
           return (
-            <div key={step.key} className="flex items-center gap-3 text-sm">
-              <span className={`flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold
-                ${isDone ? 'bg-green-100 text-green-600' : isActive ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
+            <div key={step.key} className="flex items-center gap-2.5 text-sm">
+              <span className={`flex-shrink-0 w-4 h-4 flex items-center justify-center rounded-full text-xs
+                ${isDone ? 'bg-gray-200 text-gray-600' : isActive ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-400'}`}>
                 {isDone ? '\u2713' : isActive ? '\u25CF' : '\u25CB'}
               </span>
-              <span className={isDone ? 'text-green-700' : isActive ? 'text-blue-700 font-medium' : 'text-gray-400'}>
+              <span className={isDone ? 'text-gray-500' : isActive ? 'text-gray-900 font-medium' : 'text-gray-400'}>
                 {step.label}
               </span>
               {isActive && (
-                <span className="text-gray-500 text-xs">{transcribeProgress.message}</span>
+                <span className="text-gray-400 text-xs">{transcribeProgress.message}</span>
               )}
             </div>
           );
@@ -293,27 +293,27 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
 
         {/* 进度条 */}
         <div className="mt-2">
-          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-500"
+              className="h-full bg-gray-900 rounded-full transition-all duration-500"
               style={{ width: `${transcribeProgress.percentage}%` }}
             />
           </div>
-          <p className="text-xs text-gray-500 mt-1 text-right">{transcribeProgress.percentage}%</p>
+          <p className="text-xs text-gray-400 mt-1 text-right tabular-nums">{transcribeProgress.percentage}%</p>
         </div>
       </div>
     );
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* 头部 */}
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">智能添加播客笔记</h2>
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">智能添加播客笔记</h2>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl"
+            className="text-gray-300 hover:text-gray-500 text-xl transition-colors"
             disabled={isBusy}
           >
             &times;
@@ -321,14 +321,14 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
         </div>
 
         {/* Tab 切换 */}
-        <div className="px-6 pt-4 flex gap-1 border-b border-gray-100">
+        <div className="px-6 pt-3 flex gap-1 border-b border-gray-100">
           <button
             onClick={() => !isBusy && setActiveTab('paste')}
             disabled={isBusy}
-            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === 'paste'
-                ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                ? 'text-gray-900 border-b-2 border-gray-900'
+                : 'text-gray-400 hover:text-gray-600'
             }`}
           >
             文本上传
@@ -336,10 +336,10 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
           <button
             onClick={() => !isBusy && setActiveTab('url')}
             disabled={isBusy}
-            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === 'url'
-                ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                ? 'text-gray-900 border-b-2 border-gray-900'
+                : 'text-gray-400 hover:text-gray-600'
             }`}
           >
             播客链接
@@ -347,13 +347,13 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
         </div>
 
         {/* 主体内容 */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {activeTab === 'paste' ? (
             /* ===== Tab 1: 粘贴原文 ===== */
             <>
               {/* 文件上传 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">
                   上传播客原文文件
                   <span className="text-gray-400 font-normal ml-2">(.txt, .md, .doc)</span>
                 </label>
@@ -369,16 +369,15 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isBusy}
-                  className="w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
+                  className="w-full px-4 py-5 border border-dashed border-gray-200 rounded-lg text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center gap-2 text-sm"
                 >
-                  <span>+</span>
                   {transcript ? '重新选择文件' : '点击选择文件'}
                 </button>
               </div>
 
               {/* 文本粘贴 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">
                   或直接粘贴播客原文
                 </label>
                 <textarea
@@ -386,7 +385,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
                   onChange={(e) => setTranscript(e.target.value)}
                   rows={8}
                   disabled={isBusy}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 resize-none text-sm"
                   placeholder="将播客转录文本粘贴到这里..."
                 />
                 {transcript && (
@@ -395,32 +394,32 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
               </div>
 
               {/* API Key - 折叠区域 */}
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="border border-gray-100 rounded-lg overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setApiKeyExpanded(!apiKeyExpanded)}
                   className="w-full px-4 py-2.5 flex items-center justify-between text-sm hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-600 font-medium">API 配置</span>
+                    <span className="text-gray-500 font-medium text-xs">API 配置</span>
                     {apiKey ? (
-                      <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">已配置</span>
+                      <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">已配置</span>
                     ) : (
-                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">未配置</span>
+                      <span className="text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">未配置</span>
                     )}
                   </div>
-                  <span className={`text-gray-400 text-xs transition-transform ${apiKeyExpanded ? 'rotate-180' : ''}`}>&#9660;</span>
+                  <span className={`text-gray-300 text-xs transition-transform ${apiKeyExpanded ? 'rotate-180' : ''}`}>&#9660;</span>
                 </button>
                 {apiKeyExpanded && (
                   <div className="px-4 pb-4 border-t border-gray-100 pt-3">
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-sm font-medium text-gray-700">
+                      <label className="text-xs font-medium text-gray-500">
                         API Key
                         <span className="text-gray-400 font-normal ml-2">(支持 iDealab)</span>
                       </label>
                       {apiKey && (
-                        <button type="button" onClick={clearApiKey} className="text-xs text-red-500 hover:text-red-600">
-                          清除已保存的 Key
+                        <button type="button" onClick={clearApiKey} className="text-xs text-gray-400 hover:text-red-400">
+                          清除
                         </button>
                       )}
                     </div>
@@ -428,12 +427,12 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
                       type="password"
                       value={apiKey}
                       onChange={(e) => saveApiKey(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
                       placeholder="sk-... 或 iDealab API Key"
                       disabled={isBusy}
                     />
                     <p className="text-xs text-gray-400 mt-1">
-                      {apiKey ? 'API Key 已自动保存，下次无需重新输入' : 'API Key 仅保存在本地浏览器'}
+                      {apiKey ? '已自动保存' : '仅保存在本地浏览器'}
                     </p>
                   </div>
                 )}
@@ -444,7 +443,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
             <>
               {/* 链接输入 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">
                   小宇宙播客链接
                 </label>
                 <div className="flex gap-2">
@@ -452,7 +451,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
                     type="text"
                     value={podcastUrl}
                     onChange={(e) => setPodcastUrl(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
                     placeholder="https://www.xiaoyuzhoufm.com/episode/..."
                     disabled={isProcessing}
                     onKeyDown={(e) => {
@@ -465,7 +464,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
                     type="button"
                     onClick={handleParseUrl}
                     disabled={isParsing || isProcessing || !podcastUrl.trim()}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                   >
                     {isParsing ? '解析中...' : '解析'}
                   </button>
@@ -474,89 +473,89 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
 
               {/* 元数据预览 */}
               {podcastMeta && (
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                <div className="p-4 bg-gray-50 border border-gray-100 rounded-lg space-y-2">
                   <h3 className="font-medium text-gray-900 text-sm">{podcastMeta.title}</h3>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
                     {podcastMeta.host && <span>主播: {podcastMeta.host}</span>}
                     {podcastMeta.date && <span>日期: {podcastMeta.date}</span>}
                     {podcastMeta.duration > 0 && <span>时长: {formatDuration(podcastMeta.duration)}</span>}
                   </div>
                   {podcastMeta.description && (
-                    <p className="text-xs text-gray-500 line-clamp-3">{podcastMeta.description}</p>
+                    <p className="text-xs text-gray-400 line-clamp-3">{podcastMeta.description}</p>
                   )}
                 </div>
               )}
 
               {/* 进度展示 */}
               {transcribeProgress && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="p-4 bg-gray-50 border border-gray-100 rounded-lg">
                   {renderProgressSteps()}
                 </div>
               )}
 
               {/* API 配置 - 折叠区域 */}
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="border border-gray-100 rounded-lg overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setApiKeyExpanded(!apiKeyExpanded)}
                   className="w-full px-4 py-2.5 flex items-center justify-between text-sm hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-600 font-medium">API 配置</span>
+                    <span className="text-gray-500 font-medium text-xs">API 配置</span>
                     {dashscopeApiKey && apiKey ? (
-                      <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">已配置</span>
+                      <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">已配置</span>
                     ) : (
-                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                      <span className="text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">
                         {!dashscopeApiKey && !apiKey ? '未配置' : '部分配置'}
                       </span>
                     )}
                   </div>
-                  <span className={`text-gray-400 text-xs transition-transform ${apiKeyExpanded ? 'rotate-180' : ''}`}>&#9660;</span>
+                  <span className={`text-gray-300 text-xs transition-transform ${apiKeyExpanded ? 'rotate-180' : ''}`}>&#9660;</span>
                 </button>
                 {apiKeyExpanded && (
                   <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-sm font-medium text-gray-700">
+                        <label className="text-xs font-medium text-gray-500">
                           百炼 API Key
-                          <span className="text-gray-400 font-normal ml-2">(用于语音转录)</span>
+                          <span className="text-gray-400 font-normal ml-2">(语音转录)</span>
                         </label>
                         {dashscopeApiKey && (
-                          <button type="button" onClick={clearDashscopeKey} className="text-xs text-red-500 hover:text-red-600">清除</button>
+                          <button type="button" onClick={clearDashscopeKey} className="text-xs text-gray-400 hover:text-red-400">清除</button>
                         )}
                       </div>
                       <input
                         type="password"
                         value={dashscopeApiKey}
                         onChange={(e) => saveDashscopeKey(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
                         placeholder="sk-..."
                         disabled={isProcessing}
                       />
                       <p className="text-xs text-gray-400 mt-1">
-                        {dashscopeApiKey ? '已自动保存' : '阿里云百炼平台的 API Key，仅保存在本地'}
+                        {dashscopeApiKey ? '已自动保存' : '仅保存在本地'}
                       </p>
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-sm font-medium text-gray-700">
+                        <label className="text-xs font-medium text-gray-500">
                           iDealab API Key
-                          <span className="text-gray-400 font-normal ml-2">(用于 AI 分析)</span>
+                          <span className="text-gray-400 font-normal ml-2">(AI 分析)</span>
                         </label>
                         {apiKey && (
-                          <button type="button" onClick={clearApiKey} className="text-xs text-red-500 hover:text-red-600">清除</button>
+                          <button type="button" onClick={clearApiKey} className="text-xs text-gray-400 hover:text-red-400">清除</button>
                         )}
                       </div>
                       <input
                         type="password"
                         value={apiKey}
                         onChange={(e) => saveApiKey(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
                         placeholder="iDealab API Key"
                         disabled={isProcessing}
                       />
                       <p className="text-xs text-gray-400 mt-1">
-                        {apiKey ? '已自动保存' : '与"文本上传"共用同一个 Key'}
+                        {apiKey ? '已自动保存' : '与"文本上传"共用'}
                       </p>
                     </div>
                   </div>
@@ -567,27 +566,27 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
 
           {/* 错误提示 */}
           {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-red-400 text-sm">
               {error}
             </div>
           )}
 
           {/* 进度提示（Tab 1） */}
           {activeTab === 'paste' && progress && (
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-600 text-sm flex items-center gap-2">
-              <span className="animate-spin">*</span>
+            <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg text-gray-600 text-sm flex items-center gap-2">
+              <span className="animate-spin text-gray-400">*</span>
               {progress}
             </div>
           )}
         </div>
 
         {/* 底部操作 */}
-        <div className="p-6 border-t border-gray-100 flex items-center justify-end gap-3">
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={handleClose}
             disabled={isBusy}
-            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-gray-500 hover:bg-gray-50 rounded-lg transition-colors text-sm disabled:opacity-50"
           >
             取消
           </button>
@@ -597,7 +596,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
               type="button"
               onClick={handleAnalyze}
               disabled={isAnalyzing || !transcript.trim() || !apiKey.trim()}
-              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-5 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isAnalyzing ? '分析中...' : '开始分析'}
             </button>
@@ -606,10 +605,10 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
               type="button"
               onClick={isProcessing ? cancelProcessing : handleSmartAdd}
               disabled={!isProcessing && (!podcastMeta || !dashscopeApiKey.trim() || !apiKey.trim())}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 isProcessing
-                  ? 'bg-red-500 text-white hover:bg-red-600'
-                  : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700'
+                  ? 'bg-red-400 text-white hover:bg-red-500'
+                  : 'bg-gray-900 text-white hover:bg-gray-800'
               }`}
             >
               {isProcessing ? '取消' : '开始转录并分析'}
