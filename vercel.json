@@ -11,12 +11,28 @@
     {
       "src": "api/analyze.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/parse-podcast.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/transcribe.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/api/analyze",
       "dest": "/api/analyze.js"
+    },
+    {
+      "src": "/api/parse-podcast",
+      "dest": "/api/parse-podcast.js"
+    },
+    {
+      "src": "/api/transcribe",
+      "dest": "/api/transcribe.js"
     },
     {
       "src": "/(.*)",

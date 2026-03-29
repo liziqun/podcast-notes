@@ -10,3 +10,19 @@ export interface PodcastNote {
   transcript?: string;  // 播客原文/转录文本
   createdAt: number;
 }
+
+export interface PodcastMetadata {
+  title: string;
+  host: string;
+  date: string;
+  description: string;
+  duration: number;       // 秒
+  audioUrl: string;
+  coverUrl?: string;
+}
+
+export interface TranscribeProgress {
+  phase: 'parsing' | 'transcribing' | 'analyzing';
+  percentage: number;     // 0-100
+  message: string;
+}

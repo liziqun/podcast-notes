@@ -81,11 +81,11 @@ function App() {
     setIsAIAnalyzeOpen(true);
   };
 
-  const handleAIAnalyzed = (result: AnalysisResult) => {
+  const handleAIAnalyzed = (result: AnalysisResult & { transcript?: string }) => {
     const newNote: Partial<PodcastNote> = {
       ...result,
       rating: 5,
-      transcript: '',
+      transcript: result.transcript || '',
     };
     setAiAnalyzedData(newNote);
     setEditingNote(null);

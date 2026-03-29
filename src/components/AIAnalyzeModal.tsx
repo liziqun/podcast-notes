@@ -1,32 +1,54 @@
 import { useState, useRef, useEffect } from 'react';
 import mammoth from 'mammoth';
 import { analyzePodcastTranscript, type AnalysisResult } from '../services/openai';
+import {
+  validateXiaoyuzhouUrl,
+  parsePodcastUrl,
+  submitTranscription,
+  pollTranscriptionStatus,
+  fetchTranscriptionResult,
+  formatDuration,
+} from '../services/xiaoyuzhou';
+import type { PodcastMetadata, TranscribeProgress } from '../types';
 
 interface AIAnalyzeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAnalyzed: (result: AnalysisResult) => void;
+  onAnalyzed: (result: AnalysisResult & { transcript?: string }) => void;
 }
 
 const API_KEY_STORAGE_KEY = 'podcast-notes-api-key';
+const DASHSCOPE_KEY_STORAGE_KEY = 'podcast-notes-dashscope-key';
 
 export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalProps) {
-  const [transcript, setTranscript] = useState('');
+  // 共享状态
+  const [activeTab, setActiveTab] = useState<'paste' | 'url'>('paste');
   const [apiKey, setApiKey] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Tab 1: 粘贴原文 相关状态
+  const [transcript, setTranscript] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Tab 2: 播客链接 相关状态
+  const [dashscopeApiKey, setDashscopeApiKey] = useState('');
+  const [podcastUrl, setPodcastUrl] = useState('');
+  const [podcastMeta, setPodcastMeta] = useState<PodcastMetadata | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [transcribeProgress, setTranscribeProgress] = useState<TranscribeProgress | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // 从 localStorage 加载保存的 API Key
   useEffect(() => {
     const savedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
-    if (savedKey) {
-      setApiKey(savedKey);
-    }
+    if (savedKey) setApiKey(savedKey);
+    const savedDashscopeKey = localStorage.getItem(DASHSCOPE_KEY_STORAGE_KEY);
+    if (savedDashscopeKey) setDashscopeApiKey(savedDashscopeKey);
   }, []);
 
-  // 保存 API Key 到 localStorage
   const saveApiKey = (key: string) => {
     setApiKey(key);
     if (key.trim()) {
@@ -34,40 +56,57 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
     }
   };
 
-  // 清除保存的 API Key
   const clearApiKey = () => {
     setApiKey('');
     localStorage.removeItem(API_KEY_STORAGE_KEY);
   };
 
+  const saveDashscopeKey = (key: string) => {
+    setDashscopeApiKey(key);
+    if (key.trim()) {
+      localStorage.setItem(DASHSCOPE_KEY_STORAGE_KEY, key);
+    }
+  };
+
+  const clearDashscopeKey = () => {
+    setDashscopeApiKey('');
+    localStorage.removeItem(DASHSCOPE_KEY_STORAGE_KEY);
+  };
+
+  // 清理函数：取消正在进行的操作
+  const cancelProcessing = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
+
   if (!isOpen) return null;
+
+  const isBusy = isAnalyzing || isParsing || isProcessing;
+
+  // ===== Tab 1: 粘贴原文 =====
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setError(null);
 
-    // 根据文件类型选择不同的读取方式
     if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
-      // Word 文档 - 使用 mammoth 解析
       try {
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
         setTranscript(result.value);
-      } catch (err) {
+      } catch {
         setError('Word 文档解析失败，请尝试复制粘贴文本内容');
       }
     } else {
-      // 纯文本文件
       const reader = new FileReader();
       reader.onload = (event) => {
         const content = event.target?.result as string;
         setTranscript(content);
       };
-      reader.onerror = () => {
-        setError('文件读取失败');
-      };
+      reader.onerror = () => setError('文件读取失败');
       reader.readAsText(file);
     }
   };
@@ -78,7 +117,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
       return;
     }
     if (!apiKey.trim()) {
-      setError('请输入 OpenAI API Key');
+      setError('请输入 API Key');
       return;
     }
 
@@ -98,139 +137,446 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
     }
   };
 
+  // ===== Tab 2: 播客链接 =====
+
+  const handleParseUrl = async () => {
+    const url = podcastUrl.trim();
+    if (!url) {
+      setError('请输入小宇宙播客链接');
+      return;
+    }
+    if (!validateXiaoyuzhouUrl(url)) {
+      setError('请输入有效的小宇宙播客链接（如 https://www.xiaoyuzhoufm.com/episode/...）');
+      return;
+    }
+
+    setIsParsing(true);
+    setError(null);
+    setPodcastMeta(null);
+
+    try {
+      const metadata = await parsePodcastUrl(url);
+      setPodcastMeta(metadata);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const handleSmartAdd = async () => {
+    if (!dashscopeApiKey.trim()) {
+      setError('请输入百炼 API Key（用于语音转录）');
+      return;
+    }
+    if (!apiKey.trim()) {
+      setError('请输入 iDealab API Key（用于 AI 分析）');
+      return;
+    }
+    if (!podcastMeta) {
+      setError('请先解析播客链接');
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      // 阶段 1: 提交转录任务
+      setTranscribeProgress({
+        phase: 'transcribing',
+        percentage: 5,
+        message: '正在提交转录任务...',
+      });
+
+      const taskId = await submitTranscription(podcastMeta.audioUrl, dashscopeApiKey);
+
+      // 阶段 2: 轮询转录状态
+      setTranscribeProgress({
+        phase: 'transcribing',
+        percentage: 10,
+        message: '转录任务已提交，等待处理...',
+      });
+
+      const transcriptionUrl = await pollTranscriptionStatus(
+        taskId,
+        dashscopeApiKey,
+        setTranscribeProgress,
+        controller.signal
+      );
+
+      // 阶段 3: 获取转录结果
+      setTranscribeProgress({
+        phase: 'transcribing',
+        percentage: 75,
+        message: '正在获取转录结果...',
+      });
+
+      const transcriptText = await fetchTranscriptionResult(transcriptionUrl);
+
+      // 阶段 4: AI 分析
+      setTranscribeProgress({
+        phase: 'analyzing',
+        percentage: 80,
+        message: '正在进行 AI 内容分析...',
+      });
+
+      const analysisResult = await analyzePodcastTranscript(transcriptText, apiKey);
+
+      // 合并结果
+      const finalResult: AnalysisResult & { transcript?: string } = {
+        ...analysisResult,
+        title: analysisResult.title || podcastMeta.title,
+        host: analysisResult.host || podcastMeta.host,
+        date: analysisResult.date || podcastMeta.date,
+        transcript: transcriptText,
+      };
+
+      setTranscribeProgress({
+        phase: 'analyzing',
+        percentage: 100,
+        message: '处理完成',
+      });
+
+      onAnalyzed(finalResult);
+      onClose();
+    } catch (err) {
+      if ((err as Error).message !== '操作已取消') {
+        setError((err as Error).message);
+      }
+    } finally {
+      setIsProcessing(false);
+      setTranscribeProgress(null);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleClose = () => {
+    cancelProcessing();
+    onClose();
+  };
+
+  // ===== 进度步骤渲染 =====
+  const renderProgressSteps = () => {
+    if (!transcribeProgress) return null;
+
+    const steps = [
+      { key: 'parsing', label: '解析链接', done: !!podcastMeta },
+      { key: 'transcribing', label: '语音转录', done: transcribeProgress.phase === 'analyzing' },
+      { key: 'analyzing', label: 'AI 分析', done: transcribeProgress.percentage >= 100 },
+    ];
+
+    return (
+      <div className="space-y-3">
+        {steps.map((step) => {
+          const isActive = transcribeProgress.phase === step.key;
+          const isDone = step.done;
+          return (
+            <div key={step.key} className="flex items-center gap-3 text-sm">
+              <span className={`flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold
+                ${isDone ? 'bg-green-100 text-green-600' : isActive ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
+                {isDone ? '\u2713' : isActive ? '\u25CF' : '\u25CB'}
+              </span>
+              <span className={isDone ? 'text-green-700' : isActive ? 'text-blue-700 font-medium' : 'text-gray-400'}>
+                {step.label}
+              </span>
+              {isActive && (
+                <span className="text-gray-500 text-xs">{transcribeProgress.message}</span>
+              )}
+            </div>
+          );
+        })}
+
+        {/* 进度条 */}
+        <div className="mt-2">
+          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-500"
+              style={{ width: `${transcribeProgress.percentage}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-1 text-right">{transcribeProgress.percentage}%</p>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* 头部 */}
         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">🤖 智能添加播客笔记</h2>
-          <button 
-            onClick={onClose} 
+          <h2 className="text-xl font-bold text-gray-900">智能添加播客笔记</h2>
+          <button
+            onClick={handleClose}
             className="text-gray-400 hover:text-gray-600 text-2xl"
-            disabled={isAnalyzing}
+            disabled={isBusy}
           >
             &times;
           </button>
         </div>
 
+        {/* Tab 切换 */}
+        <div className="px-6 pt-4 flex gap-1 border-b border-gray-100">
+          <button
+            onClick={() => !isBusy && setActiveTab('paste')}
+            disabled={isBusy}
+            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+              activeTab === 'paste'
+                ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            粘贴原文
+          </button>
+          <button
+            onClick={() => !isBusy && setActiveTab('url')}
+            disabled={isBusy}
+            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+              activeTab === 'url'
+                ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            播客链接
+          </button>
+        </div>
+
+        {/* 主体内容 */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* API Key 输入 */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-sm font-medium text-gray-700">
-                API Key
-                <span className="text-gray-400 font-normal ml-2">(支持 iDealab / OpenAI / Kimi)</span>
-              </label>
-              {apiKey && (
+          {activeTab === 'paste' ? (
+            /* ===== Tab 1: 粘贴原文 ===== */
+            <>
+              {/* API Key */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-sm font-medium text-gray-700">
+                    API Key
+                    <span className="text-gray-400 font-normal ml-2">(支持 iDealab / OpenAI / Kimi)</span>
+                  </label>
+                  {apiKey && (
+                    <button type="button" onClick={clearApiKey} className="text-xs text-red-500 hover:text-red-600">
+                      清除已保存的 Key
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => saveApiKey(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="sk-... 或 iDealab API Key"
+                  disabled={isBusy}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  {apiKey ? 'API Key 已自动保存，下次无需重新输入' : 'API Key 仅保存在本地浏览器'}
+                </p>
+              </div>
+
+              {/* 文件上传 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  上传播客原文文件
+                  <span className="text-gray-400 font-normal ml-2">(.txt, .md, .doc)</span>
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,.md,.doc,.docx"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  disabled={isBusy}
+                />
                 <button
                   type="button"
-                  onClick={clearApiKey}
-                  className="text-xs text-red-500 hover:text-red-600"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isBusy}
+                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
                 >
-                  清除已保存的 Key
+                  <span>+</span>
+                  {transcript ? '重新选择文件' : '点击选择文件'}
                 </button>
+              </div>
+
+              {/* 文本粘贴 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  或直接粘贴播客原文
+                </label>
+                <textarea
+                  value={transcript}
+                  onChange={(e) => setTranscript(e.target.value)}
+                  rows={8}
+                  disabled={isBusy}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm"
+                  placeholder="将播客转录文本粘贴到这里..."
+                />
+                {transcript && (
+                  <p className="text-xs text-gray-400 mt-1">已输入 {transcript.length} 字符</p>
+                )}
+              </div>
+            </>
+          ) : (
+            /* ===== Tab 2: 播客链接 ===== */
+            <>
+              {/* 百炼 API Key */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-sm font-medium text-gray-700">
+                    百炼 API Key
+                    <span className="text-gray-400 font-normal ml-2">(用于语音转录)</span>
+                  </label>
+                  {dashscopeApiKey && (
+                    <button type="button" onClick={clearDashscopeKey} className="text-xs text-red-500 hover:text-red-600">
+                      清除
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="password"
+                  value={dashscopeApiKey}
+                  onChange={(e) => saveDashscopeKey(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="sk-..."
+                  disabled={isProcessing}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  {dashscopeApiKey ? '已自动保存' : '阿里云百炼平台的 API Key，仅保存在本地'}
+                </p>
+              </div>
+
+              {/* iDealab API Key */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-sm font-medium text-gray-700">
+                    iDealab API Key
+                    <span className="text-gray-400 font-normal ml-2">(用于 AI 分析)</span>
+                  </label>
+                  {apiKey && (
+                    <button type="button" onClick={clearApiKey} className="text-xs text-red-500 hover:text-red-600">
+                      清除
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => saveApiKey(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="iDealab API Key"
+                  disabled={isProcessing}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  {apiKey ? '已自动保存' : '与"粘贴原文"共用同一个 Key'}
+                </p>
+              </div>
+
+              {/* 链接输入 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  小宇宙播客链接
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={podcastUrl}
+                    onChange={(e) => setPodcastUrl(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="https://www.xiaoyuzhoufm.com/episode/..."
+                    disabled={isProcessing}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isParsing && !isProcessing) {
+                        handleParseUrl();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleParseUrl}
+                    disabled={isParsing || isProcessing || !podcastUrl.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                  >
+                    {isParsing ? '解析中...' : '解析'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 元数据预览 */}
+              {podcastMeta && (
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                  <h3 className="font-medium text-gray-900 text-sm">{podcastMeta.title}</h3>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                    {podcastMeta.host && <span>主播: {podcastMeta.host}</span>}
+                    {podcastMeta.date && <span>日期: {podcastMeta.date}</span>}
+                    {podcastMeta.duration > 0 && <span>时长: {formatDuration(podcastMeta.duration)}</span>}
+                  </div>
+                  {podcastMeta.description && (
+                    <p className="text-xs text-gray-500 line-clamp-3">{podcastMeta.description}</p>
+                  )}
+                </div>
               )}
-            </div>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => saveApiKey(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="sk-... 或 Kimi API Key"
-              disabled={isAnalyzing}
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              {apiKey ? '✅ API Key 已自动保存，下次无需重新输入' : 'API Key 仅保存在本地浏览器，不会上传到任何服务器'}
-            </p>
-          </div>
 
-          {/* 文件上传 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              上传播客原文文件
-              <span className="text-gray-400 font-normal ml-2">(.txt, .md, .doc)</span>
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt,.md,.doc,.docx"
-              onChange={handleFileUpload}
-              className="hidden"
-              disabled={isAnalyzing}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isAnalyzing}
-              className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
-            >
-              <span>📁</span>
-              {transcript ? '重新选择文件' : '点击选择文件'}
-            </button>
-          </div>
-
-          {/* 或直接粘贴 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              或直接粘贴播客原文
-            </label>
-            <textarea
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              rows={8}
-              disabled={isAnalyzing}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm"
-              placeholder="将播客转录文本粘贴到这里..."
-            />
-            {transcript && (
-              <p className="text-xs text-gray-400 mt-1">
-                已输入 {transcript.length} 字符
-              </p>
-            )}
-          </div>
+              {/* 进度展示 */}
+              {transcribeProgress && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  {renderProgressSteps()}
+                </div>
+              )}
+            </>
+          )}
 
           {/* 错误提示 */}
           {error && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-              ❌ {error}
+              {error}
             </div>
           )}
 
-          {/* 进度提示 */}
-          {progress && (
+          {/* 进度提示（Tab 1） */}
+          {activeTab === 'paste' && progress && (
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-600 text-sm flex items-center gap-2">
-              <span className="animate-spin">⏳</span>
+              <span className="animate-spin">*</span>
               {progress}
             </div>
           )}
         </div>
 
+        {/* 底部操作 */}
         <div className="p-6 border-t border-gray-100 flex items-center justify-end gap-3">
           <button
             type="button"
-            onClick={onClose}
-            disabled={isAnalyzing}
+            onClick={handleClose}
+            disabled={isBusy}
             className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
           >
             取消
           </button>
-          <button
-            type="button"
-            onClick={handleAnalyze}
-            disabled={isAnalyzing || !transcript.trim() || !apiKey.trim()}
-            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isAnalyzing ? (
-              <>
-                <span className="animate-spin">⚡</span>
-                分析中...
-              </>
-            ) : (
-              <>
-                <span>✨</span>
-                开始分析
-              </>
-            )}
-          </button>
+
+          {activeTab === 'paste' ? (
+            <button
+              type="button"
+              onClick={handleAnalyze}
+              disabled={isAnalyzing || !transcript.trim() || !apiKey.trim()}
+              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isAnalyzing ? '分析中...' : '开始分析'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={isProcessing ? cancelProcessing : handleSmartAdd}
+              disabled={!isProcessing && (!podcastMeta || !dashscopeApiKey.trim() || !apiKey.trim())}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                isProcessing
+                  ? 'bg-red-500 text-white hover:bg-red-600'
+                  : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700'
+              }`}
+            >
+              {isProcessing ? '取消' : '开始转录并分析'}
+            </button>
+          )}
         </div>
       </div>
     </div>
