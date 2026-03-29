@@ -1,11 +1,24 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { PodcastCard } from './components/PodcastCard';
 import { NoteModal } from './components/NoteModal';
 import { AIAnalyzeModal } from './components/AIAnalyzeModal';
+import { AuthModal } from './components/AuthModal';
+import { SyncStatus } from './components/SyncStatus';
 import type { PodcastNote } from './types';
 import type { AnalysisResult } from './services/openai';
 import { sampleNotes } from './data/sampleData';
+import {
+  isSupabaseConfigured,
+  onAuthStateChange,
+  getCurrentUser,
+  signOut,
+  fetchNotes,
+  createNote,
+  updateNote,
+  deleteNote as deleteCloudNote
+} from './services/supabase';
+import type { User } from '@supabase/supabase-js';
 
 function App() {
   const [notes, setNotes] = useState<PodcastNote[]>([]);
@@ -15,7 +28,39 @@ function App() {
   const [isAIAnalyzeOpen, setIsAIAnalyzeOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<PodcastNote | null>(null);
   const [aiAnalyzedData, setAiAnalyzedData] = useState<Partial<PodcastNote> | null>(null);
+  
+  // 云端同步相关状态
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [isCloudEnabled, setIsCloudEnabled] = useState(false);
 
+  // 检查 Supabase 配置和当前用户
+  useEffect(() => {
+    const configured = isSupabaseConfigured();
+    setIsCloudEnabled(configured);
+    
+    if (configured) {
+      // 获取当前用户
+      getCurrentUser().then(setUser);
+      
+      // 监听认证状态变化
+      const subscription = onAuthStateChange((newUser) => {
+        setUser(newUser);
+        if (newUser) {
+          // 用户登录后，从云端加载数据
+          loadCloudNotes();
+        }
+      });
+      
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+  }, []);
+
+  // 从 LocalStorage 加载数据（作为离线备份）
   useEffect(() => {
     const stored = localStorage.getItem('podcast-notes');
     if (stored) {
@@ -26,11 +71,46 @@ function App() {
     }
   }, []);
 
+  // 保存到 LocalStorage（离线备份）
   useEffect(() => {
     if (notes.length > 0) {
       localStorage.setItem('podcast-notes', JSON.stringify(notes));
     }
   }, [notes]);
+
+  // 从云端加载笔记
+  const loadCloudNotes = useCallback(async () => {
+    if (!user) return;
+    
+    setIsSyncing(true);
+    try {
+      const cloudNotes = await fetchNotes();
+      setNotes(cloudNotes);
+      setLastSyncTime(new Date());
+    } catch (err) {
+      console.error('加载云端数据失败:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [user]);
+
+  // 处理登录成功
+  const handleAuthSuccess = () => {
+    setIsAuthModalOpen(false);
+    getCurrentUser().then((currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        loadCloudNotes();
+      }
+    });
+  };
+
+  // 处理退出登录
+  const handleLogout = async () => {
+    await signOut();
+    setUser(null);
+    setLastSyncTime(null);
+  };
 
   const allTags = useMemo(() => {
     const tags = new Set<string>();
@@ -57,18 +137,55 @@ function App() {
       : 0
   }), [notes]);
 
-  const handleSave = (note: PodcastNote) => {
+  const handleSave = async (note: PodcastNote) => {
+    const exists = notes.find(n => n.id === note.id);
+    
+    // 先更新本地状态
     setNotes(prev => {
-      const exists = prev.find(n => n.id === note.id);
       if (exists) {
         return prev.map(n => n.id === note.id ? note : n);
       }
       return [note, ...prev];
     });
+    
+    // 如果已登录，同步到云端
+    if (user && isCloudEnabled) {
+      setIsSyncing(true);
+      try {
+        if (exists) {
+          await updateNote(note.id, note);
+        } else {
+          const newNote = await createNote(note);
+          // 更新本地状态，使用云端返回的 ID
+          setNotes(prev => prev.map(n => 
+            n.id === note.id ? { ...newNote } : n
+          ));
+        }
+        setLastSyncTime(new Date());
+      } catch (err) {
+        console.error('同步到云端失败:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    // 先更新本地状态
     setNotes(prev => prev.filter(n => n.id !== id));
+    
+    // 如果已登录，同步删除到云端
+    if (user && isCloudEnabled) {
+      setIsSyncing(true);
+      try {
+        await deleteCloudNote(id);
+        setLastSyncTime(new Date());
+      } catch (err) {
+        console.error('从云端删除失败:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
   };
 
   const openAddModal = () => {
@@ -104,6 +221,16 @@ function App() {
         selectedTag={selectedTag}
         onTagSelect={setSelectedTag}
         stats={stats}
+        syncStatus={
+          <SyncStatus
+            user={user}
+            isSupabaseConfigured={isCloudEnabled}
+            onLoginClick={() => setIsAuthModalOpen(true)}
+            onLogoutClick={handleLogout}
+            lastSyncTime={lastSyncTime}
+            isSyncing={isSyncing}
+          />
+        }
       />
       
       <main className="flex-1 p-8">
@@ -168,6 +295,12 @@ function App() {
         isOpen={isAIAnalyzeOpen}
         onClose={() => setIsAIAnalyzeOpen(false)}
         onAnalyzed={handleAIAnalyzed}
+      />
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={handleAuthSuccess}
       />
     </div>
   );

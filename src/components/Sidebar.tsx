@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 interface SidebarProps {
   tags: string[];
   selectedTag: string | null;
@@ -6,9 +8,10 @@ interface SidebarProps {
     total: number;
     avgRating: number;
   };
+  syncStatus?: ReactNode;
 }
 
-export function Sidebar({ tags, selectedTag, onTagSelect, stats }: SidebarProps) {
+export function Sidebar({ tags, selectedTag, onTagSelect, stats, syncStatus }: SidebarProps) {
   return (
     <aside className="w-64 bg-white border-r border-gray-200 min-h-screen p-6">
       <div className="mb-8">
@@ -59,6 +62,15 @@ export function Sidebar({ tags, selectedTag, onTagSelect, stats }: SidebarProps)
           ))}
         </div>
       </div>
+
+      {syncStatus && (
+        <div className="mt-auto pt-6 border-t border-gray-200">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">
+            云端同步
+          </h2>
+          {syncStatus}
+        </div>
+      )}
     </aside>
   );
 }
