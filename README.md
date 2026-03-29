@@ -1,73 +1,104 @@
-# React + TypeScript + Vite
+# 🎧 播客笔记
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+一个简洁优雅的播客笔记管理应用，支持智能添加播客链接、AI 分析核心观点，以及云端同步功能。
 
-Currently, two official plugins are available:
+## ✨ 功能特性
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### 播客管理
+- 📝 **播客笔记管理** - 记录收听心得、核心观点和个人笔记
+- 🔍 **智能搜索** - 支持按标题、主播、标签、内容搜索
+- 🏷️ **标签筛选** - 自定义标签分类，快速定位相关内容
+- ⭐ **评分系统** - 为播客内容打分，统计平均评分
 
-## React Compiler
+### 智能添加
+- 🔗 **链接解析** - 粘贴小宇宙播客链接，自动提取元数据
+- 🤖 **AI 分析** - 智能转录音频并提取核心观点（集成 iDealab API）
+- ⚡ **一键生成** - 自动填充标题、主播、核心观点等信息
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 云端同步
+- ☁️ **Supabase 集成** - 数据云端存储，多设备同步
+- 🔐 **用户认证** - 邮箱/密码注册登录
+- 📊 **同步状态** - 实时显示同步状态，支持离线缓存
 
-## Expanding the ESLint configuration
+## 🛠️ 技术栈
+- **前端**: React 19 + TypeScript + Vite
+- **样式**: Tailwind CSS 4
+- **后端服务**: Supabase (PostgreSQL + Auth)
+- **AI 服务**: iDealab API
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 📝 使用说明
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### 基础操作
+1. **添加笔记** - 点击"添加笔记"手动创建，或使用"智能添加"粘贴播客链接
+2. **编辑笔记** - 点击卡片进入编辑模式，可修改所有字段
+3. **删除笔记** - 在编辑弹窗中点击删除按钮
+4. **搜索筛选** - 在顶部搜索框输入关键词，或使用侧边栏标签筛选
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 云端同步
+1. 点击侧边栏"登录开启云端同步"
+2. 注册新账号或使用已有账号登录
+3. 登录后数据自动同步到云端
+4. 在其他设备登录同一账号即可同步数据
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 智能添加功能
+1. 点击"智能添加"按钮
+2. 粘贴小宇宙播客链接
+3. 等待 AI 分析完成（提取标题、主播、核心观点）
+4. 确认或修改信息后保存
+
+## 📁 项目结构
+
+```
+podcast-notes/
+├── src/
+│   ├── components/          # React 组件
+│   │   ├── AuthModal.tsx       # 登录/注册弹窗
+│   │   ├── AIAnalyzeModal.tsx  # AI 分析弹窗
+│   │   ├── NoteModal.tsx       # 笔记编辑弹窗
+│   │   ├── PodcastCard.tsx     # 播客卡片
+│   │   ├── Sidebar.tsx         # 侧边栏
+│   │   └── SyncStatus.tsx      # 同步状态
+│   ├── services/            # 服务层
+│   │   ├── supabase.ts         # Supabase 客户端
+│   │   └── openai.ts           # AI 服务
+│   ├── data/                # 示例数据
+│   ├── types.ts             # TypeScript 类型
+│   └── App.tsx              # 主应用
+├── .env                     # 环境变量
+└── package.json
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 🔄 版本迭代
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### v1.2.0 - 云端同步功能
+**2025-03-29**
+- ✨ 新增 Supabase 云端同步功能
+- ✨ 新增用户注册/登录系统
+- ✨ 新增同步状态指示器
+- ✨ 支持多设备数据同步
+- ✨ 离线缓存 + 云端备份双保险
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### v1.1.0 - 智能添加功能
+**2025-03-28**
+- ✨ 新增播客链接智能解析
+- ✨ 集成 AI 分析核心观点
+- ✨ 支持小宇宙播客链接
+- ✨ 自动提取播客元数据
+
+### v1.0.0 - 初始版本
+**2025-03-27**
+- ✨ 播客笔记基础功能
+- ✨ 标签管理和搜索筛选
+- ✨ 评分系统
+- ✨ LocalStorage 本地存储
+- ✨ 响应式设计
+
+## 🔒 隐私说明
+
+- 数据存储在 Supabase 云端数据库，采用行级安全策略，仅用户本人可访问
+- LocalStorage 作为离线缓存，清除浏览器数据会丢失未同步内容
+- AI 分析功能需要调用外部 API，音频转录内容可能被服务商记录
+
+## 📄 开源协议
+
+MIT License
