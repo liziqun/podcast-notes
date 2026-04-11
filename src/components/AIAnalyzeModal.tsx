@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import mammoth from 'mammoth';
-import { analyzePodcastTranscript, type AnalysisResult } from '../services/openai';
+import { analyzePodcastTranscript, type AnalysisResult, AI_ANALYSIS_MODEL } from '../services/openai';
 import {
   validateXiaoyuzhouUrl,
   parsePodcastUrl,
@@ -8,6 +8,7 @@ import {
   pollTranscriptionStatus,
   fetchTranscriptionResult,
   formatDuration,
+  TRANSCRIPTION_MODEL,
 } from '../services/xiaoyuzhou';
 import type { PodcastMetadata, TranscribeProgress } from '../types';
 
@@ -17,15 +18,14 @@ interface AIAnalyzeModalProps {
   onAnalyzed: (result: AnalysisResult & { transcript?: string; sourceUrl?: string }) => void;
 }
 
-const API_KEY_STORAGE_KEY = 'podcast-notes-api-key';
 const DASHSCOPE_KEY_STORAGE_KEY = 'podcast-notes-dashscope-key';
 
 export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalProps) {
   // 共享状态
   const [activeTab, setActiveTab] = useState<'paste' | 'url'>('url');
-  const [apiKey, setApiKey] = useState('');
   const [apiKeyExpanded, setApiKeyExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDashscopeKey, setShowDashscopeKey] = useState(false);
 
   // Tab 1: 粘贴原文 相关状态
   const [transcript, setTranscript] = useState('');
@@ -44,23 +44,13 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
 
   // 从 localStorage 加载保存的 API Key
   useEffect(() => {
-    const savedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
-    if (savedKey) setApiKey(savedKey);
     const savedDashscopeKey = localStorage.getItem(DASHSCOPE_KEY_STORAGE_KEY);
     if (savedDashscopeKey) setDashscopeApiKey(savedDashscopeKey);
+    
+    // 清理旧的 API Key（如果存在）
+    localStorage.removeItem('podcast-notes-api-key');
+    localStorage.removeItem('openai_api_key');
   }, []);
-
-  const saveApiKey = (key: string) => {
-    setApiKey(key);
-    if (key.trim()) {
-      localStorage.setItem(API_KEY_STORAGE_KEY, key);
-    }
-  };
-
-  const clearApiKey = () => {
-    setApiKey('');
-    localStorage.removeItem(API_KEY_STORAGE_KEY);
-  };
 
   const saveDashscopeKey = (key: string) => {
     setDashscopeApiKey(key);
@@ -72,6 +62,11 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
   const clearDashscopeKey = () => {
     setDashscopeApiKey('');
     localStorage.removeItem(DASHSCOPE_KEY_STORAGE_KEY);
+  };
+
+  // 获取用于 AI 分析的 API Key（始终使用百炼 Key）
+  const getAnalysisKey = (): string => {
+    return dashscopeApiKey.trim();
   };
 
   // 清理函数：取消正在进行的操作
@@ -117,8 +112,11 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
       setError('请先输入或上传播客原文');
       return;
     }
-    if (!apiKey.trim()) {
-      setError('请输入 API Key');
+    
+    // 始终使用百炼 Key 进行 AI 分析
+    const analysisKey = getAnalysisKey();
+    if (!analysisKey) {
+      setError('请先配置百炼 API Key');
       return;
     }
 
@@ -127,7 +125,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
     setProgress('正在分析播客内容...');
 
     try {
-      const result = await analyzePodcastTranscript(transcript, apiKey);
+      const result = await analyzePodcastTranscript(transcript, analysisKey);
       onAnalyzed(result);
       onClose();
     } catch (err) {
@@ -170,14 +168,13 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
       setError('请输入百炼 API Key（用于语音转录）');
       return;
     }
-    if (!apiKey.trim()) {
-      setError('请输入 iDealab API Key（用于 AI 分析）');
-      return;
-    }
     if (!podcastMeta) {
       setError('请先解析播客链接');
       return;
     }
+    
+    // 始终使用百炼 Key 进行 AI 分析
+    const analysisKey = getAnalysisKey();
 
     setIsProcessing(true);
     setError(null);
@@ -224,7 +221,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
         message: '正在进行 AI 内容分析...',
       });
 
-      const analysisResult = await analyzePodcastTranscript(transcriptText, apiKey);
+      const analysisResult = await analyzePodcastTranscript(transcriptText, analysisKey);
 
       // 合并结果：解析元数据优先于 AI 分析结果
       const finalResult: AnalysisResult & { transcript?: string; sourceUrl?: string } = {
@@ -402,7 +399,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-gray-500 font-medium text-xs">API 配置</span>
-                    {apiKey ? (
+                    {dashscopeApiKey ? (
                       <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">已配置</span>
                     ) : (
                       <span className="text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">未配置</span>
@@ -413,26 +410,52 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
                 {apiKeyExpanded && (
                   <div className="px-4 pb-4 border-t border-gray-100 pt-3">
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-medium text-gray-500">
-                        API Key
-                        <span className="text-gray-400 font-normal ml-2">(支持 iDealab)</span>
-                      </label>
-                      {apiKey && (
-                        <button type="button" onClick={clearApiKey} className="text-xs text-gray-400 hover:text-red-400">
-                          清除
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-medium text-gray-500">
+                          百炼 API Key
+                        </label>
+                        {dashscopeApiKey && (
+                          <span className="text-xs text-gray-400">已自动保存</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowDashscopeKey(!showDashscopeKey)}
+                          className="text-xs text-gray-400 hover:text-gray-600 p-1"
+                          title={showDashscopeKey ? '隐藏' : '显示'}
+                        >
+                          {showDashscopeKey ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                              <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                              <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                              <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                              <line x1="2" x2="22" y1="2" y2="22"/>
+                            </svg>
+                          )}
                         </button>
-                      )}
+                        {dashscopeApiKey && (
+                          <button type="button" onClick={clearDashscopeKey} className="text-xs text-gray-400 hover:text-red-400">
+                            清除
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <input
-                      type="password"
-                      value={apiKey}
-                      onChange={(e) => saveApiKey(e.target.value)}
+                      type={showDashscopeKey ? 'text' : 'password'}
+                      value={dashscopeApiKey}
+                      onChange={(e) => saveDashscopeKey(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
-                      placeholder="sk-... 或 iDealab API Key"
+                      placeholder="sk-..."
                       disabled={isBusy}
                     />
                     <p className="text-xs text-gray-400 mt-1">
-                      {apiKey ? '已自动保存' : '仅保存在本地浏览器'}
+                      {`模型说明：语音转录使用 ${TRANSCRIPTION_MODEL} 模型，AI 分析使用 ${AI_ANALYSIS_MODEL} 模型`}
                     </p>
                   </div>
                 )}
@@ -502,62 +525,62 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-gray-500 font-medium text-xs">API 配置</span>
-                    {dashscopeApiKey && apiKey ? (
+                    {dashscopeApiKey ? (
                       <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">已配置</span>
                     ) : (
-                      <span className="text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">
-                        {!dashscopeApiKey && !apiKey ? '未配置' : '部分配置'}
-                      </span>
+                      <span className="text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">未配置</span>
                     )}
                   </div>
                   <span className={`text-gray-300 text-xs transition-transform ${apiKeyExpanded ? 'rotate-180' : ''}`}>&#9660;</span>
                 </button>
                 {apiKeyExpanded && (
-                  <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
+                  <div className="px-4 pb-4 border-t border-gray-100 pt-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
                         <label className="text-xs font-medium text-gray-500">
                           百炼 API Key
-                          <span className="text-gray-400 font-normal ml-2">(语音转录)</span>
                         </label>
+                        {dashscopeApiKey && (
+                          <span className="text-xs text-gray-400">已自动保存</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowDashscopeKey(!showDashscopeKey)}
+                          className="text-xs text-gray-400 hover:text-gray-600 p-1"
+                          title={showDashscopeKey ? '隐藏' : '显示'}
+                        >
+                          {showDashscopeKey ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                              <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                              <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                              <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                              <line x1="2" x2="22" y1="2" y2="22"/>
+                            </svg>
+                          )}
+                        </button>
                         {dashscopeApiKey && (
                           <button type="button" onClick={clearDashscopeKey} className="text-xs text-gray-400 hover:text-red-400">清除</button>
                         )}
                       </div>
-                      <input
-                        type="password"
-                        value={dashscopeApiKey}
-                        onChange={(e) => saveDashscopeKey(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
-                        placeholder="sk-..."
-                        disabled={isProcessing}
-                      />
-                      <p className="text-xs text-gray-400 mt-1">
-                        {dashscopeApiKey ? '已自动保存' : '仅保存在本地'}
-                      </p>
                     </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-medium text-gray-500">
-                          iDealab API Key
-                          <span className="text-gray-400 font-normal ml-2">(AI 分析)</span>
-                        </label>
-                        {apiKey && (
-                          <button type="button" onClick={clearApiKey} className="text-xs text-gray-400 hover:text-red-400">清除</button>
-                        )}
-                      </div>
-                      <input
-                        type="password"
-                        value={apiKey}
-                        onChange={(e) => saveApiKey(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
-                        placeholder="iDealab API Key"
-                        disabled={isProcessing}
-                      />
-                      <p className="text-xs text-gray-400 mt-1">
-                        {apiKey ? '已自动保存' : '与"文本上传"共用'}
-                      </p>
-                    </div>
+                    <input
+                      type={showDashscopeKey ? 'text' : 'password'}
+                      value={dashscopeApiKey}
+                      onChange={(e) => saveDashscopeKey(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
+                      placeholder="sk-..."
+                      disabled={isProcessing}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      {`模型说明：语音转录使用 ${TRANSCRIPTION_MODEL} 模型，AI 分析使用 ${AI_ANALYSIS_MODEL} 模型`}
+                    </p>
                   </div>
                 )}
               </div>
@@ -595,7 +618,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
             <button
               type="button"
               onClick={handleAnalyze}
-              disabled={isAnalyzing || !transcript.trim() || !apiKey.trim()}
+              disabled={isAnalyzing || !transcript.trim() || !dashscopeApiKey.trim()}
               className="px-5 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isAnalyzing ? '分析中...' : '开始分析'}
@@ -604,7 +627,7 @@ export function AIAnalyzeModal({ isOpen, onClose, onAnalyzed }: AIAnalyzeModalPr
             <button
               type="button"
               onClick={isProcessing ? cancelProcessing : handleSmartAdd}
-              disabled={!isProcessing && (!podcastMeta || !dashscopeApiKey.trim() || !apiKey.trim())}
+              disabled={!isProcessing && (!podcastMeta || !dashscopeApiKey.trim())}
               className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 isProcessing
                   ? 'bg-red-400 text-white hover:bg-red-500'

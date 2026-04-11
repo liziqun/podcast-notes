@@ -15,6 +15,7 @@ export default defineConfig({
         secure: false,
         headers: {
           'Origin': 'https://idealab.alibaba-inc.com',
+          'Referer': 'https://idealab.alibaba-inc.com/',
         },
       },
     },

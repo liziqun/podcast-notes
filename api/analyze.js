@@ -24,6 +24,9 @@ export default async function handler(req, res) {
     return;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 55000);
+
   try {
     const response = await fetch('https://idealab.alibaba-inc.com/api/openai/v1/chat/completions', {
       method: 'POST',
@@ -31,14 +34,29 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
         'Origin': 'https://idealab.alibaba-inc.com',
+        'Referer': 'https://idealab.alibaba-inc.com/',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/event-stream',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
       },
       body: JSON.stringify(req.body),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     const data = await response.json();
-    res.status(response.status).json(data);
+    if (!response.ok) {
+      const errorMsg = data?.error?.message || data?.message || `HTTP ${response.status}`;
+      return res.status(response.status).json({ error: errorMsg });
+    }
+    res.status(200).json(data);
   } catch (error) {
-    console.error('Proxy error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      res.status(504).json({ error: 'iDealab API 响应超时，请重试' });
+    } else {
+      console.error('Proxy error:', error);
+      res.status(502).json({ error: 'API 代理失败: ' + error.message });
+    }
   }
 }

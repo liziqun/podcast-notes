@@ -1,4 +1,63 @@
-// AI API 服务（支持 OpenAI、Kimi/Moonshot 和阿里 iDealab）
+// AI API 服务（支持 OpenAI、Kimi/Moonshot、阿里云百炼 DashScope 和阿里 iDealab）
+
+// AI 分析使用的模型名称
+export const AI_ANALYSIS_MODEL = 'qwen-max';
+
+// 安全解析 JSON，处理字符串值内部的非法字符
+function safeJsonParse(str: string): any {
+  // 第一次：直接解析
+  try {
+    return JSON.parse(str);
+  } catch (e) {
+    // 第二次：清理非法控制字符后再试
+    // 只移除真正的非法控制字符（U+0000 到 U+001F 中除了 \t \n \r 以外的）
+    // 不要替换 \n \r \t，因为它们在 JSON 结构中是合法的空白字符
+    const cleaned = str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+    try {
+      return JSON.parse(cleaned);
+    } catch (e2) {
+      // 第三次：处理字符串值内部的换行符
+      // 只替换 JSON 字符串值内部（引号之间）的换行符
+      const fixedNewlines = cleaned.replace(/"(?:[^"\\]|\\.)*"/g, (match) => {
+        return match
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/\t/g, '\\t');
+      });
+      try {
+        return JSON.parse(fixedNewlines);
+      } catch (e3) {
+        // 最后尝试：提取 {...} 部分
+        const objMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (objMatch) {
+          const fixedObj = objMatch[0].replace(/"(?:[^"\\]|\\.)*"/g, (match) => {
+            return match
+              .replace(/\n/g, '\\n')
+              .replace(/\r/g, '\\r')
+              .replace(/\t/g, '\\t');
+          });
+          return JSON.parse(fixedObj);
+        }
+        throw e3;
+      }
+    }
+  }
+}
+
+// 提取 markdown 代码块中的 JSON
+function extractJson(content: string): string {
+  // 移除可能的 markdown 代码块标记
+  let cleaned = content.trim();
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.slice(7);
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.slice(3);
+  }
+  if (cleaned.endsWith('```')) {
+    cleaned = cleaned.slice(0, -3);
+  }
+  return cleaned.trim();
+}
 
 export interface AnalysisResult {
   title: string;
@@ -12,11 +71,13 @@ export interface AnalysisResult {
 }
 
 // 检测 API Key 类型
-function detectAPIType(apiKey: string): 'idealab' | 'kimi' | 'openai' {
-  if (/^[a-f0-9]{32}$/i.test(apiKey)) {
-    return 'idealab';
-  } else if (apiKey.startsWith('sk-kimi') || apiKey.includes('kimi')) {
+function detectAPIType(apiKey: string): 'idealab' | 'kimi' | 'openai' | 'dashscope' {
+  if (apiKey.startsWith('sk-kimi') || apiKey.includes('kimi')) {
     return 'kimi';
+  } else if (/^[a-f0-9]{32}$/i.test(apiKey)) {
+    return 'idealab';
+  } else if (apiKey.startsWith('sk-')) {
+    return 'dashscope';
   } else {
     return 'openai';
   }
@@ -33,7 +94,7 @@ export async function analyzePodcastTranscript(
     return analyzeWithProxy(transcript, apiKey);
   }
   
-  // Kimi 和 OpenAI 直接调用
+  // Kimi、OpenAI 和 DashScope 直接调用
   return analyzeDirectly(transcript, apiKey, apiType);
 }
 
@@ -216,18 +277,29 @@ async function analyzeWithProxy(transcript: string, apiKey: string): Promise<Ana
   }
 
   const data = await response.json();
+  console.log('[analyze] 响应数据:', JSON.stringify(data).substring(0, 500));
   return parseAPIResponse(data);
 }
 
-// 直接调用 API（Kimi/OpenAI）
-async function analyzeDirectly(transcript: string, apiKey: string, apiType: 'kimi' | 'openai'): Promise<AnalysisResult> {
-  const config = apiType === 'kimi' ? {
-    url: 'https://api.moonshot.cn/v1/chat/completions',
-    model: 'moonshot-v1-8k',
-  } : {
-    url: 'https://api.openai.com/v1/chat/completions',
-    model: 'gpt-3.5-turbo',
-  };
+// 直接调用 API（Kimi/OpenAI/DashScope）
+async function analyzeDirectly(transcript: string, apiKey: string, apiType: 'kimi' | 'openai' | 'dashscope'): Promise<AnalysisResult> {
+  let config;
+  if (apiType === 'kimi') {
+    config = {
+      url: 'https://api.moonshot.cn/v1/chat/completions',
+      model: 'moonshot-v1-8k',
+    };
+  } else if (apiType === 'dashscope') {
+    config = {
+      url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+      model: AI_ANALYSIS_MODEL,
+    };
+  } else {
+    config = {
+      url: 'https://api.openai.com/v1/chat/completions',
+      model: 'gpt-3.5-turbo',
+    };
+  }
   
   const prompt = buildPrompt(transcript);
 
@@ -283,29 +355,57 @@ async function analyzeDirectly(transcript: string, apiKey: string, apiType: 'kim
 
 // 解析 API 响应
 function parseAPIResponse(data: any): AnalysisResult {
-  const content = data.choices[0]?.message?.content;
+  const content = data?.choices?.[0]?.message?.content;
   
   if (!content) {
-    throw new Error('API 返回内容为空');
+    // 提供更详细的错误信息
+    const debugInfo = JSON.stringify({
+      hasChoices: Array.isArray(data?.choices),
+      choicesLength: data?.choices?.length,
+      hasMessage: !!data?.choices?.[0]?.message,
+      error: data?.error,
+    });
+    console.error('API 响应结构:', debugInfo);
+    console.error('完整响应:', JSON.stringify(data).substring(0, 1000));
+    throw new Error(`API 返回内容为空（响应结构: ${debugInfo}）`);
   }
 
   try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const result = JSON.parse(jsonMatch[0]);
-      return {
-        title: result.title || '未命名播客',
-        host: result.host || '未知主播',
-        date: result.date || new Date().toISOString().split('T')[0],
-        tags: Array.isArray(result.tags) ? result.tags : [],
-        category: result.category || '',
-        summary: result.summary || '',
-        keyPoints: typeof result.keyPoints === 'string' ? result.keyPoints : '',
-        notes: result.notes || '',
-      };
-    }
-    throw new Error('无法解析 API 返回的 JSON');
+    // 先提取 markdown 代码块中的内容
+    let jsonStr = extractJson(content);
+    
+    // 使用安全解析函数解析 JSON
+    const result = safeJsonParse(jsonStr);
+    return {
+      title: result.title || '未命名播客',
+      host: result.host || '未知主播',
+      date: result.date || new Date().toISOString().split('T')[0],
+      tags: Array.isArray(result.tags) ? result.tags : [],
+      category: result.category || '',
+      summary: result.summary || '',
+      keyPoints: typeof result.keyPoints === 'string' ? result.keyPoints : '',
+      notes: result.notes || '',
+    };
   } catch (e) {
+    // fallback: 尝试用正则提取 JSON 对象部分再解析
+    try {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const result = safeJsonParse(jsonMatch[0]);
+        return {
+          title: result.title || '未命名播客',
+          host: result.host || '未知主播',
+          date: result.date || new Date().toISOString().split('T')[0],
+          tags: Array.isArray(result.tags) ? result.tags : [],
+          category: result.category || '',
+          summary: result.summary || '',
+          keyPoints: typeof result.keyPoints === 'string' ? result.keyPoints : '',
+          notes: result.notes || '',
+        };
+      }
+    } catch (fallbackError) {
+      // fallback 也失败，抛出原始错误
+    }
     throw new Error('解析 API 响应失败: ' + (e as Error).message);
   }
 }

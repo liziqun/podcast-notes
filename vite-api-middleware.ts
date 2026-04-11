@@ -108,6 +108,9 @@ async function handleTranscribe(req: IncomingMessage, res: ServerResponse) {
     } catch { sendJson(res, 400, { error: '无效的音频 URL' }); return; }
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
+      
       const r = await fetch(`${DASHSCOPE_BASE}/api/v1/services/audio/asr/transcription`, {
         method: 'POST',
         headers: {
@@ -120,7 +123,9 @@ async function handleTranscribe(req: IncomingMessage, res: ServerResponse) {
           input: { file_urls: [audioUrl] },
           parameters: { language_hints: ['zh'] },
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const data = await r.json() as any;
       if (!r.ok) {
         const msg = data?.message || data?.error?.message || `HTTP ${r.status}`;
@@ -149,7 +154,7 @@ async function handleTranscribe(req: IncomingMessage, res: ServerResponse) {
       const result: any = { status: output.task_status };
       if (output.task_status === 'SUCCEEDED') {
         const results = output.results || [];
-        if (results.length > 0 && results[0].transcription_url) {
+        if (results.length > 0 && results[0]?.transcription_url) {
           result.transcriptionUrl = results[0].transcription_url;
         }
       } else if (output.task_status === 'FAILED') {

@@ -2,6 +2,9 @@
 
 import type { PodcastMetadata, TranscribeProgress } from '../types';
 
+// 语音转录使用的模型名称
+export const TRANSCRIPTION_MODEL = 'paraformer-v2';
+
 const POLL_INTERVAL = 5000; // 5 秒轮询一次
 const POLL_TIMEOUT = 30 * 60 * 1000; // 30 分钟超时
 

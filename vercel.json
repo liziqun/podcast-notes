@@ -10,7 +10,10 @@
     },
     {
       "src": "api/analyze.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 60
+      }
     },
     {
       "src": "api/parse-podcast.js",
@@ -18,7 +21,10 @@
     },
     {
       "src": "api/transcribe.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 60
+      }
     }
   ],
   "routes": [
