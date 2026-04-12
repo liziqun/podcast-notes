@@ -39,6 +39,8 @@ export function apiMiddlewarePlugin() {
           await handleParsePodcast(req, res);
         } else if (url.startsWith('/api/transcribe')) {
           await handleTranscribe(req, res);
+        } else if (url.startsWith('/api/dashscope-analyze')) {
+          await handleDashscopeAnalyze(req, res);
         } else {
           next();
         }
@@ -167,6 +169,57 @@ async function handleTranscribe(req: IncomingMessage, res: ServerResponse) {
 
   } else {
     sendJson(res, 405, { error: 'Method not allowed' });
+  }
+}
+
+// ===== /api/dashscope-analyze =====
+async function handleDashscopeAnalyze(req: IncomingMessage, res: ServerResponse) {
+  setCors(res);
+  if (req.method === 'OPTIONS') { res.statusCode = 200; res.end(); return; }
+  if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    sendJson(res, 401, { error: '缺少 Authorization 头' });
+    return;
+  }
+  const apiKey = authHeader.replace('Bearer ', '');
+
+  const body = await parseBody(req);
+  if (!body || !body.model || !body.messages) {
+    sendJson(res, 400, { error: '请求体缺少必要参数' });
+    return;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 300000); // 300秒超时
+
+  try {
+    const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+    if (!response.ok) {
+      const errorMsg = data?.error?.message || data?.message || `HTTP ${response.status}`;
+      return sendJson(res, response.status, { error: errorMsg });
+    }
+    sendJson(res, 200, data);
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      sendJson(res, 504, { error: 'DashScope API 响应超时，请重试' });
+    } else {
+      console.error('DashScope proxy error:', error);
+      sendJson(res, 502, { error: 'DashScope 代理失败: ' + error.message });
+    }
   }
 }
 

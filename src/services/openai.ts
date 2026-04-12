@@ -94,7 +94,12 @@ export async function analyzePodcastTranscript(
     return analyzeWithProxy(transcript, apiKey);
   }
   
-  // Kimi、OpenAI 和 DashScope 直接调用
+  // DashScope 使用本地代理（避免 CORS）
+  if (apiType === 'dashscope') {
+    return analyzeWithDashScopeProxy(transcript, apiKey);
+  }
+
+  // Kimi、OpenAI 直接调用
   return analyzeDirectly(transcript, apiKey, apiType);
 }
 
@@ -103,7 +108,7 @@ function buildPrompt(transcript: string): string {
   return `你是一位专业的播客内容分析师，请深度分析以下播客转录文本，提取结构化信息并以 JSON 格式返回。
 
 ## 播客原文
-${transcript.slice(0, 12000)}...
+${transcript.slice(0, 20000)}...
 
 ## 分析要求
 
@@ -281,18 +286,83 @@ async function analyzeWithProxy(transcript: string, apiKey: string): Promise<Ana
   return parseAPIResponse(data);
 }
 
-// 直接调用 API（Kimi/OpenAI/DashScope）
-async function analyzeDirectly(transcript: string, apiKey: string, apiType: 'kimi' | 'openai' | 'dashscope'): Promise<AnalysisResult> {
+// 通过本地代理调用 DashScope（避免 CORS）
+async function analyzeWithDashScopeProxy(transcript: string, apiKey: string): Promise<AnalysisResult> {
+  const prompt = buildPrompt(transcript);
+
+  const requestBody = {
+    model: AI_ANALYSIS_MODEL,
+    messages: [
+      {
+        role: 'system',
+        content: '你是一个专业的播客内容分析助手，擅长从播客转录文本中提取关键信息、提炼核心观点。'
+      },
+      {
+        role: 'user',
+        content: prompt
+      }
+    ],
+    temperature: 0.7,
+    enable_thinking: true, // 深度思考模式
+  };
+
+  let response;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 300000); // 300秒超时
+
+  try {
+    response = await fetch('/api/dashscope-analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
+    });
+  } catch (fetchError: any) {
+    clearTimeout(timeoutId);
+    if (fetchError.name === 'AbortError') {
+      throw new Error('AI分析请求超时（已等待300秒），请稍后重试');
+    }
+    throw new Error('网络连接失败，请检查网络');
+  }
+
+  clearTimeout(timeoutId);
+
+  if (!response.ok) {
+    let errorMessage = 'API 调用失败';
+    try {
+      const error = await response.json();
+      errorMessage = error.error || error.message || `HTTP ${response.status}`;
+    } catch {
+      errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+    }
+
+    if (response.status === 401) {
+      throw new Error('API Key 无效或已过期');
+    } else if (response.status === 429) {
+      throw new Error('请求过于频繁，请稍后再试');
+    } else if (response.status === 504) {
+      throw new Error('DashScope API 响应超时，请稍后重试');
+    } else if (response.status === 502) {
+      throw new Error('DashScope 代理失败: ' + errorMessage);
+    } else {
+      throw new Error(errorMessage);
+    }
+  }
+
+  const data = await response.json();
+  return parseAPIResponse(data);
+}
+
+// 直接调用 API（Kimi/OpenAI）
+async function analyzeDirectly(transcript: string, apiKey: string, apiType: 'kimi' | 'openai'): Promise<AnalysisResult> {
   let config;
   if (apiType === 'kimi') {
     config = {
       url: 'https://api.moonshot.cn/v1/chat/completions',
       model: 'moonshot-v1-8k',
-    };
-  } else if (apiType === 'dashscope') {
-    config = {
-      url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-      model: AI_ANALYSIS_MODEL,
     };
   } else {
     config = {
@@ -300,10 +370,28 @@ async function analyzeDirectly(transcript: string, apiKey: string, apiType: 'kim
       model: 'gpt-3.5-turbo',
     };
   }
-  
+
   const prompt = buildPrompt(transcript);
 
+  const requestBody = {
+    model: config.model,
+    messages: [
+      {
+        role: 'system',
+        content: '你是一个专业的播客内容分析助手，擅长从播客转录文本中提取关键信息、提炼核心观点。'
+      },
+      {
+        role: 'user',
+        content: prompt
+      }
+    ],
+    temperature: 0.7,
+  };
+
   let response;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 300000); // 300秒超时
+
   try {
     response = await fetch(config.url, {
       method: 'POST',
@@ -312,24 +400,18 @@ async function analyzeDirectly(transcript: string, apiKey: string, apiType: 'kim
         'Authorization': `Bearer ${apiKey}`,
         'Accept': 'application/json',
       },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          {
-            role: 'system',
-            content: '你是一个专业的播客内容分析助手，擅长从播客转录文本中提取关键信息、提炼核心观点。'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.7,
-      }),
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
     });
-  } catch (fetchError) {
+  } catch (fetchError: any) {
+    clearTimeout(timeoutId);
+    if (fetchError.name === 'AbortError') {
+      throw new Error('AI分析请求超时（已等待300秒），请稍后重试');
+    }
     throw new Error('网络连接失败，请检查网络');
   }
+
+  clearTimeout(timeoutId);
 
   if (!response.ok) {
     let errorMessage = 'API 调用失败';
@@ -339,7 +421,7 @@ async function analyzeDirectly(transcript: string, apiKey: string, apiType: 'kim
     } catch {
       errorMessage = `HTTP ${response.status}: ${response.statusText}`;
     }
-    
+
     if (response.status === 401) {
       throw new Error('API Key 无效或已过期');
     } else if (response.status === 429) {
@@ -356,6 +438,10 @@ async function analyzeDirectly(transcript: string, apiKey: string, apiType: 'kim
 // 解析 API 响应
 function parseAPIResponse(data: any): AnalysisResult {
   const content = data?.choices?.[0]?.message?.content;
+  const reasoning = data?.choices?.[0]?.message?.reasoning_content;
+  if (reasoning) {
+    console.log('[analyze] 深度思考过程长度:', reasoning.length, '字符');
+  }
   
   if (!content) {
     // 提供更详细的错误信息

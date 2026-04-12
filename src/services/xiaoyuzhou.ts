@@ -40,23 +40,37 @@ export async function submitTranscription(
   audioUrl: string,
   apiKey: string
 ): Promise<string> {
-  const response = await fetch('/api/transcribe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ audioUrl, apiKey }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
+  
+  try {
+    const response = await fetch('/api/transcribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audioUrl, apiKey }),
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data.error || `提交转录任务失败: HTTP ${response.status}`);
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `提交转录任务失败: HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data.taskId) {
+      throw new Error('未获取到转录任务 ID');
+    }
+
+    return data.taskId;
+  } catch (fetchError: any) {
+    clearTimeout(timeoutId);
+    if (fetchError.name === 'AbortError') {
+      throw new Error('提交转录任务超时（已等待60秒），请稍后重试');
+    }
+    throw new Error('网络连接失败，请检查网络');
   }
-
-  const data = await response.json();
-  if (!data.taskId) {
-    throw new Error('未获取到转录任务 ID');
-  }
-
-  return data.taskId;
 }
 
 /**
@@ -80,9 +94,23 @@ export async function pollTranscriptionStatus(
       throw new Error('转录任务超时（已等待 30 分钟），请重试');
     }
 
-    const response = await fetch(
-      `/api/transcribe?taskId=${encodeURIComponent(taskId)}&apiKey=${encodeURIComponent(apiKey)}`
-    );
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+    
+    let response;
+    try {
+      response = await fetch(
+        `/api/transcribe?taskId=${encodeURIComponent(taskId)}&apiKey=${encodeURIComponent(apiKey)}`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timeoutId);
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        throw new Error('查询转录状态超时（已等待30秒），请稍后重试');
+      }
+      throw new Error('网络连接失败，请检查网络');
+    }
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
@@ -135,7 +163,20 @@ export async function pollTranscriptionStatus(
 export async function fetchTranscriptionResult(
   transcriptionUrl: string
 ): Promise<string> {
-  const response = await fetch(transcriptionUrl);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+  
+  let response;
+  try {
+    response = await fetch(transcriptionUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+  } catch (fetchError: any) {
+    clearTimeout(timeoutId);
+    if (fetchError.name === 'AbortError') {
+      throw new Error('获取转录结果超时（已等待30秒），请稍后重试');
+    }
+    throw new Error('网络连接失败，请检查网络');
+  }
 
   if (!response.ok) {
     if (response.status === 403 || response.status === 404) {

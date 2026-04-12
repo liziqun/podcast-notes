@@ -60,6 +60,9 @@ async function handleSubmit(req, res) {
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000); // 55秒超时（Vercel函数有60秒限制）
+    
     const response = await fetch(TRANSCRIPTION_URL, {
       method: 'POST',
       headers: {
@@ -76,7 +79,10 @@ async function handleSubmit(req, res) {
           language_hints: ['zh'],
         },
       }),
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
 
     const data = await response.json();
 
@@ -108,6 +114,10 @@ async function handleSubmit(req, res) {
     });
   } catch (error) {
     console.error('Submit transcription error:', error);
+    if (error.name === 'AbortError') {
+      res.status(504).json({ error: '提交转录任务超时（已等待55秒），请稍后重试' });
+      return;
+    }
     res.status(500).json({ error: '提交转录任务失败: ' + error.message });
   }
 }
