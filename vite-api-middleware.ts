@@ -206,7 +206,7 @@ async function handleDashscopeAnalyze(req: IncomingMessage, res: ServerResponse)
     });
     clearTimeout(timeoutId);
 
-    const data = await response.json();
+    const data = await response.json() as any;
     if (!response.ok) {
       const errorMsg = data?.error?.message || data?.message || `HTTP ${response.status}`;
       return sendJson(res, response.status, { error: errorMsg });
