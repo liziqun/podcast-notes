@@ -26,7 +26,7 @@
 - **前端**: React 19 + TypeScript + Vite
 - **样式**: Tailwind CSS 4
 - **后端服务**: Supabase (PostgreSQL + Auth)
-- **AI 服务**: 阿里云百炼 DashScope（语音转录 paraformer-v2 + AI 分析 qwen-max）
+- **AI 服务**: 阿里云百炼 DashScope（语音转录 paraformer-v2 + AI 分析 qwen3-max）
 
 ## 📝 使用说明
 
@@ -49,7 +49,7 @@
 4. 等待 AI 分析完成（语音转录 + 内容分析）
 5. 确认或修改信息后保存
 
-**API 配置说明**：只需配置一个百炼 API Key 即可同时使用语音转录和 AI 分析功能。语音转录使用 paraformer-v2 模型，AI 分析使用 qwen-max 模型。
+**API 配置说明**：只需配置一个百炼 API Key 即可同时使用语音转录和 AI 分析功能。语音转录使用 paraformer-v2 模型，AI 分析使用 qwen3-max 模型。
 
 ## 📁 项目结构
 
@@ -74,6 +74,10 @@ podcast-notes/
 ```
 
 ## 🔄 版本迭代
+
+### v1.5.0 - AI 分析模型升级至 qwen3-max
+**2026-04-12**
+- ✨ AI 分析模型从 qwen-max 升级至 qwen3-max
 
 ### v1.4.0 - AI 服务迁移至百炼 DashScope
 **2026-04-11**

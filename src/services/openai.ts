@@ -1,7 +1,7 @@
 // AI API 服务（支持 OpenAI、Kimi/Moonshot、阿里云百炼 DashScope 和阿里 iDealab）
 
 // AI 分析使用的模型名称
-export const AI_ANALYSIS_MODEL = 'qwen-max';
+export const AI_ANALYSIS_MODEL = 'qwen3-max';
 
 // 安全解析 JSON，处理字符串值内部的非法字符
 function safeJsonParse(str: string): any {
